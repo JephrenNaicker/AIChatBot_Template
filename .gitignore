@@ -178,3 +178,4 @@ cython_debug/
 
 # Except your specific .py file
 !Fluffy.py
+!Add requirements.txt
