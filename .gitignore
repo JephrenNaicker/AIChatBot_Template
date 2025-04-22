@@ -179,3 +179,11 @@ cython_debug/
 # Except your specific .py file
 !Fluffy.py
 !Add requirements.txt
+!.gitignore
+!requirements.txt
+!Fluffy.py
+!README.md
+
+# Allow folders and their contents if needed
+!/.streamlit/
+!/.github/
