@@ -19,8 +19,9 @@ PAGES = {
     "profile": "👤 Profile",
     "my_bots": "🌟 My Bots",
     "voice": "🎙️ Voice",
-    "bot_setup": "🧙 Character Setup",  # New
-    "generate_concept": "🪄 Generate Concept"  # New
+    "bot_setup": "🧙 Character Setup",
+    "generate_concept": "🪄 Generate Concept",
+    "group_chat": "👥 Group Chat"
 }
 
 
@@ -139,7 +140,7 @@ PERSONALITY_TRAITS = [
     "Empathetic", "Analytical", "Optimistic", "Pessimistic",
     "Sarcastic", "Witty", "Humorous", "Serious",
     "Whimsical", "Enthusiastic", "Calm", "Blunt",
-    "Philosophical", "Dramatic", "Mysterious", "Wise"
+    "Philosophical", "Dramatic", "Mysterious", "Wise","Friendly"
 ]
 
 # ===== Tag options =====
@@ -307,23 +308,32 @@ def home_page():
                                  placeholder="Type to filter bots",
                                  key="bot_search")
 
-    # Combine default bots with published user bots
-    all_bots = BOTS + [
+    # Separate default bots and user bots
+    default_bots = BOTS
+    user_bots = [
         bot for bot in st.session_state.user_bots
         if bot.get("status", "draft") == "published" or
            bot.get("creator", "") == st.session_state.profile_data.get("username", "")
     ]
 
     # Filter bots
-    filtered_bots = [
-        bot for bot in all_bots
+    filtered_default_bots = [
+        bot for bot in default_bots
         if not search_query or
            (search_query.lower() in bot["name"].lower() or
             search_query.lower() in bot["desc"].lower() or
             any(search_query.lower() in tag.lower() for tag in bot["tags"]))
     ]
 
-    # Custom CSS to make the grid full-width
+    filtered_user_bots = [
+        bot for bot in user_bots
+        if not search_query or
+           (search_query.lower() in bot["name"].lower() or
+            search_query.lower() in bot["desc"].lower() or
+            any(search_query.lower() in tag.lower() for tag in bot.get("tags", [])))
+    ]
+
+    # Custom CSS to make the grid full-width and improve visibility
     st.markdown("""
     <style>
         .full-width-grid {
@@ -333,7 +343,7 @@ def home_page():
             padding: 0 1rem;
         }
         .bot-card {
-            border: 1px solid #e0e0e0;
+            border: 1px solid #444;
             border-radius: 8px;
             padding: 1rem;
             height: 180px;
@@ -342,21 +352,29 @@ def home_page():
             align-items: center;
             justify-content: center;
             text-align: center;
-            background: white;
+            background: #1e1e1e;  /* Dark background */
             box-shadow: 0 1px 2px rgba(0,0,0,0.1);
         }
         .bot-card h3 {
             margin: 8px 0;
             font-size: 1.1rem;
+            color: #f0f0f0;  /* Light text for dark background */
         }
         .bot-card p {
             margin: 0;
             font-size: 0.85rem;
-            color: #555;
+            color: #bbb;  /* Lighter gray for description */
         }
         .bot-emoji {
             font-size: 2.2rem;
             margin-bottom: 8px;
+        }
+        .section-header {
+            color: #f0f0f0;
+            font-size: 1.2rem;
+            margin: 1.5rem 0 0.5rem 0;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid #444;
         }
     </style>
     """, unsafe_allow_html=True)
@@ -364,32 +382,54 @@ def home_page():
     # Create full-width container for the grid
     st.markdown('<div class="full-width-grid">', unsafe_allow_html=True)
 
-    # Create columns for the grid (5 columns)
-    cols = st.columns(3)
+    # Display default bots section
+    if filtered_default_bots:
+        cols = st.columns(3)
+        for i, bot in enumerate(filtered_default_bots):
+            with cols[i % 3]:
+                with st.container():
+                    st.markdown(f"""
+                    <div class="bot-card">
+                        <div class="bot-emoji">{bot['emoji']}</div>
+                        <h3>{bot['name']}</h3>
+                        <p>{bot['desc']}</p>
+                    </div>
+                    """, unsafe_allow_html=True)
 
-    for i, bot in enumerate(filtered_bots):
-        with cols[i % 3]:
-            with st.container():
-                st.markdown(f"""
-                <div class="bot-card">
-                    <div class="bot-emoji">{bot['emoji']}</div>
-                    <h3>{bot['name']}</h3>
-                    <p>{bot['desc']}</p>
-                </div>
-                """, unsafe_allow_html=True)
+                    if st.button(f"Chat with {bot['name']}",
+                                 key=f"start_{bot['name']}",
+                                 use_container_width=True):
+                        st.session_state.selected_bot = bot['name']
+                        st.session_state.page = "chat"
+                        st.rerun()
 
-                if st.button(f"Chat with {bot['name']}",
-                             key=f"start_{bot['name']}",
-                             use_container_width=True):
-                    st.session_state.selected_bot = bot['name']
-                    st.session_state.page = "chat"
-                    st.rerun()
+    # Divider and user bots section
+    if filtered_user_bots:
+        st.divider()
+        cols = st.columns(3)
+        for i, bot in enumerate(filtered_user_bots):
+            with cols[i % 3]:
+                with st.container():
+                    st.markdown(f"""
+                    <div class="bot-card">
+                        <div class="bot-emoji">{bot['emoji']}</div>
+                        <h3>{bot['name']}</h3>
+                        <p>{bot['desc']}</p>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+                    if st.button(f"Chat with {bot['name']}",
+                                 key=f"start_custom_{bot['name']}",
+                                 use_container_width=True):
+                        st.session_state.selected_bot = bot['name']
+                        st.session_state.page = "chat"
+                        st.rerun()
 
     # Close our full-width div
     st.markdown('</div>', unsafe_allow_html=True)
 
     # Empty state
-    if search_query and not filtered_bots:
+    if search_query and not filtered_default_bots and not filtered_user_bots:
         st.warning("No bots match your search. Try different keywords.")
         if st.button("Clear search", key="clear_search"):
             st.rerun()
@@ -1478,7 +1518,7 @@ def edit_bot_page():
         st.rerun()
 
 # Audio storage configuration
-AUDIO_BASE_DIR = r"C:\Users\YOURPATH\Audio"
+AUDIO_BASE_DIR = r"C:\Users\Jephren Naicker\Desktop\Python\FluffyAi\Audio"
 DEFAULT_BOT_DIR = os.path.join(AUDIO_BASE_DIR, "DefaultBot")
 os.makedirs(DEFAULT_BOT_DIR, exist_ok=True)
 
@@ -1734,12 +1774,15 @@ def create_sidebar():
             st.session_state.page = "my_bots"
             st.rerun()
 
-        if st.button(PAGES["voice"], use_container_width=True, key="nav_voice"):  # New
+        if st.button(PAGES["voice"], use_container_width=True, key="nav_voice"):
             st.session_state.page = "voice"
             st.rerun()
 
+        if st.button(PAGES["group_chat"], use_container_width=True, key="nav_group_chat"):
+            st.session_state.page = "group_chat"
+            st.rerun()
+
         st.divider()
-        # Call the extracted chat list method
         display_chat_list()
 
 
@@ -1923,6 +1966,334 @@ def create_icon_toolbar(bot):
                     st.toast("Bot switching coming soon!", icon="🔄")
 
 
+def group_chat_page():
+    if not st.session_state.group_chat['active']:
+        show_group_setup()
+    else:
+        show_active_group_chat()
+
+
+def show_group_setup():
+    """Enhanced group chat setup with search and pagination"""
+    st.title("👥 Setup Group Chat")
+
+    # Custom CSS for better layout
+    st.markdown("""
+    <style>
+        .bot-selection-card {
+            border: 1px solid #444;
+            border-radius: 10px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            background: #1e1e1e;
+            transition: transform 0.2s;
+        }
+        .bot-selection-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+        .bot-selection-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 0.5rem;
+        }
+        .search-container {
+            margin-bottom: 1.5rem;
+        }
+        .selected-bots-container {
+            margin: 1.5rem 0;
+            padding: 1rem;
+            border-radius: 10px;
+            background: #1a1a1a;
+        }
+        .bot-tag {
+            background: #2a3b4d;
+            color: #7fbbde;
+            padding: 0.3rem 0.8rem;
+            border-radius: 1rem;
+            font-size: 0.85rem;
+            display: inline-block;
+            margin-right: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
+    </style>
+    """, unsafe_allow_html=True)
+
+    # Search functionality
+    with st.container():
+        st.subheader("Find Bots for Your Group Chat")
+        search_col, filter_col = st.columns([3, 1])
+
+        with search_col:
+            search_query = st.text_input(
+                "🔍 Search bots...",
+                placeholder="Type to filter by name, description or tags",
+                key="group_chat_search"
+            )
+
+        with filter_col:
+            bot_source = st.radio(
+                "Show:",
+                ["All", "Default", "My Bots"],
+                horizontal=True,
+                key="bot_source_filter"
+            )
+
+    # Combine and filter bots based on selection
+    if bot_source == "Default":
+        all_bots = BOTS.copy()
+    elif bot_source == "My Bots":
+        all_bots = st.session_state.user_bots.copy()
+    else:
+        all_bots = BOTS + st.session_state.user_bots
+
+    # Apply search filter
+    if search_query:
+        search_lower = search_query.lower()
+        all_bots = [
+            bot for bot in all_bots
+            if (search_lower in bot['name'].lower() or
+                search_lower in bot['desc'].lower() or
+                any(search_lower in tag.lower() for tag in bot.get('tags', [])))
+        ]
+
+    # Pagination
+    if 'bot_page' not in st.session_state:
+        st.session_state.bot_page = 0
+
+    BOTS_PER_PAGE = 9
+    total_pages = max(1, (len(all_bots) + BOTS_PER_PAGE - 1) // BOTS_PER_PAGE)
+
+    # Display pagination controls if needed
+    if len(all_bots) > BOTS_PER_PAGE:
+        page_cols = st.columns([1, 2, 1])
+        with page_cols[1]:
+            st.caption(f"Page {st.session_state.bot_page + 1} of {total_pages}")
+            prev_col, page_display, next_col = st.columns([1, 2, 1])
+
+            with prev_col:
+                if st.button("◀ Previous", disabled=st.session_state.bot_page == 0):
+                    st.session_state.bot_page -= 1
+                    st.rerun()
+
+            with next_col:
+                if st.button("Next ▶", disabled=st.session_state.bot_page == total_pages - 1):
+                    st.session_state.bot_page += 1
+                    st.rerun()
+
+    # Display bots in a responsive grid with pagination
+    st.subheader("Available Bots" + (f" (Filtered)" if search_query else ""))
+
+    if not all_bots:
+        st.info("No bots match your search criteria")
+    else:
+        # Get bots for current page
+        start_idx = st.session_state.bot_page * BOTS_PER_PAGE
+        end_idx = min(start_idx + BOTS_PER_PAGE, len(all_bots))
+        current_page_bots = all_bots[start_idx:end_idx]
+
+        # Display in 3-column grid
+        cols = st.columns(3)
+        for i, bot in enumerate(current_page_bots):
+            with cols[i % 3]:
+                with st.container():
+                    # Bot card
+                    st.markdown(f"""
+                    <div class="bot-selection-card">
+                        <div class="bot-selection-header">
+                            <div style="font-size: 1.5rem;">{bot['emoji']}</div>
+                            <div>
+                                <strong>{bot['name']}</strong><br>
+                                <small>{bot['desc']}</small>
+                            </div>
+                        </div>
+                        <div style="margin-top: 0.5rem;">
+                            {''.join(f'<span class="bot-tag">{tag}</span>' for tag in bot.get('tags', []))}
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+                    # Select button (only if not already selected and under limit)
+                    is_selected = bot['name'] in [b['name'] for b in st.session_state.group_chat['bots']]
+                    select_disabled = is_selected or len(st.session_state.group_chat['bots']) >= 3
+
+                    if st.button(
+                            "✓ Selected" if is_selected else "➕ Select",
+                            key=f"select_{bot['name']}_{i}",
+                            disabled=select_disabled,
+                            use_container_width=True
+                    ):
+                        st.session_state.group_chat['bots'].append(bot)
+                        st.rerun()
+
+    # Selected bots section
+    if st.session_state.group_chat['bots']:
+        with st.container():
+            st.subheader("Your Group (Selected Bots)")
+
+            # Display selected bots in a horizontal scrollable container
+            selected_cols = st.columns(min(3, len(st.session_state.group_chat['bots'])))
+            for i, bot in enumerate(st.session_state.group_chat['bots']):
+                with selected_cols[i % len(selected_cols)]:
+                    st.markdown(f"""
+                    <div class="bot-selection-card">
+                        <div class="bot-selection-header">
+                            <div style="font-size: 1.5rem;">{bot['emoji']}</div>
+                            <div>
+                                <strong>{bot['name']}</strong>
+                            </div>
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+                    if st.button(
+                            "❌ Remove",
+                            key=f"remove_{bot['name']}",
+                            use_container_width=True
+                    ):
+                        st.session_state.group_chat['bots'].remove(bot)
+                        st.rerun()
+
+    # Action buttons
+    action_cols = st.columns([1, 1, 2])
+    with action_cols[0]:
+        if st.button("🔙 Back to Home"):
+            st.session_state.page = "home"
+            st.rerun()
+
+    with action_cols[1]:
+        if st.button("🔄 Reset Selection"):
+            st.session_state.group_chat['bots'] = []
+            st.rerun()
+
+    with action_cols[2]:
+        if st.button(
+                "🚀 Start Group Chat",
+                type="primary",
+                disabled=len(st.session_state.group_chat['bots']) == 0,
+                use_container_width=True
+        ):
+            st.session_state.group_chat['active'] = True
+            st.session_state.group_chat['history'] = []
+            st.rerun()
+
+
+def show_active_group_chat():
+    """Display the active group chat with bot selector at top"""
+    st.title("👥 Group Chat")
+
+    # Custom CSS for bot selector
+    st.markdown("""
+    <style>
+        .bot-selector {
+            display: flex;
+            justify-content: center;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+            flex-wrap: wrap;
+        }
+        .bot-selector-btn {
+            border: 2px solid transparent;
+            border-radius: 50%;
+            padding: 0.5rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            background: transparent;
+            font-size: 1.8rem;
+        }
+        .bot-selector-btn:hover {
+            transform: scale(1.1);
+        }
+        .bot-selector-btn.active {
+            border-color: #4CAF50;
+            box-shadow: 0 0 10px rgba(76, 175, 80, 0.5);
+        }
+        .thinking-indicator {
+            display: inline-block;
+            margin-left: 0.5rem;
+            color: #4CAF50;
+        }
+    </style>
+    """, unsafe_allow_html=True)
+
+    # Initialize responder_idx if not exists
+    if 'responder_idx' not in st.session_state.group_chat:
+        st.session_state.group_chat['responder_idx'] = 0
+
+    # Bot selector at the top
+    with st.container():
+        st.markdown("<div class='bot-selector'>", unsafe_allow_html=True)
+
+        for idx, bot in enumerate(st.session_state.group_chat['bots']):
+            is_active = idx == st.session_state.group_chat['responder_idx']
+            btn_class = "active" if is_active else ""
+
+            # Display bot emoji button
+            st.markdown(
+                f"<button class='bot-selector-btn {btn_class}' title='{bot['name']}'>{bot['emoji']}</button>",
+                unsafe_allow_html=True
+            )
+
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    # Display chat history
+    for message in st.session_state.group_chat['history']:
+        role, content, bot_name = message
+        bot = next((b for b in st.session_state.group_chat['bots'] if b['name'] == bot_name), None)
+        avatar = bot['emoji'] if bot and role == "assistant" else None
+
+        with st.chat_message(role, avatar=avatar):
+            if role == "assistant":
+                st.markdown(f"**{bot_name}**: {content}")
+            else:
+                st.markdown(content)
+
+    # User input and response handling
+    if prompt := st.chat_input("Type your message..."):
+        handle_group_chat_response(prompt)
+
+    # End chat button at bottom
+    st.button("❌ End Group Chat", on_click=end_group_chat)
+
+
+def handle_group_chat_response(prompt):
+    """Handle user message and generate bot response"""
+    # Add user message to history
+    st.session_state.group_chat['history'].append(("user", prompt, None))
+
+    # Get current responder bot
+    responder_idx = st.session_state.group_chat['responder_idx']
+    responder_bot = st.session_state.group_chat['bots'][responder_idx]
+
+    # Generate response
+    with st.spinner(f"{responder_bot['name']} is thinking..."):
+        response = generate_bot_response(responder_bot, prompt)
+        st.session_state.group_chat['history'].append(
+            ("assistant", response, responder_bot['name'])
+        )
+
+    # Move to next bot (round-robin)
+    st.session_state.group_chat['responder_idx'] = (
+            (responder_idx + 1) % len(st.session_state.group_chat['bots'])
+    )
+    st.rerun()
+
+
+def end_group_chat():
+    """Clean up group chat session"""
+    st.session_state.group_chat['active'] = False
+    st.rerun()
+
+
+def generate_bot_response(bot, prompt):
+    """Generate response from a specific bot"""
+    chatbot = StoryChatBot()
+    # Set the selected bot in session state so the chatbot uses its personality
+    st.session_state.selected_bot = bot['name']
+    return chatbot.generate_response(prompt)
+
+
 def main():
     # Apply custom CSS at the very start
     st.markdown("""
@@ -2073,11 +2444,21 @@ def main():
         st.session_state.selected_bot = None
     if 'greeting_sent' not in st.session_state:
         st.session_state.greeting_sent = False
+    if 'group_chat' not in st.session_state:
+        st.session_state.group_chat = {
+            'active': False,  # Is group chat active
+            'bots': [],  # List of selected bots
+            'history': [],  # Chat history (role, message, bot_idx)
+            'responder_idx': 0,  # Index of bot who will reply
+            'current_chat': None  # Current chat messages
+        }
 
     # Create sidebar once
     create_sidebar()
 
+
     # Page routing - all at same indentation level
+
     if st.session_state.page == "home":
         home_page()
     elif st.session_state.page == "profile":
@@ -2096,6 +2477,8 @@ def main():
         edit_bot_page()
     elif st.session_state.page == "voice":
         voice_page()
+    elif st.session_state.page == "group_chat":
+        group_chat_page()
     else:
         st.warning("Please select a page")
         home_page()
