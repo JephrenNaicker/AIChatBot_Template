@@ -2180,64 +2180,26 @@ def show_group_setup():
 
 
 def show_active_group_chat():
-    """Display the active group chat with bot selector at top"""
+    """Display the active group chat with clean two-part layout"""
     st.title("👥 Group Chat")
 
-    # Custom CSS for bot selector
-    st.markdown("""
-    <style>
-        .bot-selector {
-            display: flex;
-            justify-content: center;
-            gap: 1rem;
-            margin-bottom: 1.5rem;
-            flex-wrap: wrap;
-        }
-        .bot-selector-btn {
-            border: 2px solid transparent;
-            border-radius: 50%;
-            padding: 0.5rem;
-            cursor: pointer;
-            transition: all 0.2s;
-            background: transparent;
-            font-size: 1.8rem;
-        }
-        .bot-selector-btn:hover {
-            transform: scale(1.1);
-        }
-        .bot-selector-btn.active {
-            border-color: #4CAF50;
-            box-shadow: 0 0 10px rgba(76, 175, 80, 0.5);
-        }
-        .thinking-indicator {
-            display: inline-block;
-            margin-left: 0.5rem;
-            color: #4CAF50;
-        }
-    </style>
-    """, unsafe_allow_html=True)
-
-    # Initialize responder_idx if not exists
-    if 'responder_idx' not in st.session_state.group_chat:
-        st.session_state.group_chat['responder_idx'] = 0
-
-    # Bot selector at the top
+    # --- Top Section: Bot Selector ---
     with st.container():
-        st.markdown("<div class='bot-selector'>", unsafe_allow_html=True)
+        bots = st.session_state.group_chat['bots']
+        num_cols = min(3, len(bots))  # Max 3 columns
+        cols = st.columns(num_cols)
 
-        for idx, bot in enumerate(st.session_state.group_chat['bots']):
-            is_active = idx == st.session_state.group_chat['responder_idx']
-            btn_class = "active" if is_active else ""
+        for idx, bot in enumerate(bots):
+            with cols[idx % num_cols]:
+                # Highlight active bot with a badge
+                if idx == st.session_state.group_chat.get('responder_idx', 0):
+                    st.markdown(f"🎙️ **{bot['emoji']} {bot['name']}**")
+                else:
+                    st.markdown(f"{bot['emoji']} {bot['name']}")
 
-            # Display bot emoji button
-            st.markdown(
-                f"<button class='bot-selector-btn {btn_class}' title='{bot['name']}'>{bot['emoji']}</button>",
-                unsafe_allow_html=True
-            )
+    st.divider()  # Clean separation
 
-        st.markdown("</div>", unsafe_allow_html=True)
-
-    # Display chat history
+    # --- Middle Section: Chat History ---
     for message in st.session_state.group_chat['history']:
         role, content, bot_name = message
         bot = next((b for b in st.session_state.group_chat['bots'] if b['name'] == bot_name), None)
@@ -2249,13 +2211,29 @@ def show_active_group_chat():
             else:
                 st.markdown(content)
 
-    # User input and response handling
+    # --- Bottom Section: Input & Controls ---
     if prompt := st.chat_input("Type your message..."):
-        handle_group_chat_response(prompt)
+        # Add user message
+        st.session_state.group_chat['history'].append(("user", prompt, None))
 
-    # End chat button at bottom
-    st.button("❌ End Group Chat", on_click=end_group_chat)
+        # Get responder
+        responder_idx = st.session_state.group_chat['responder_idx']
+        responder_bot = st.session_state.group_chat['bots'][responder_idx]
 
+        # Generate response
+        with st.spinner(f"{responder_bot['name']} is thinking..."):
+            response = generate_bot_response(responder_bot, prompt)
+            st.session_state.group_chat['history'].append(("assistant", response, responder_bot['name']))
+
+        # Update responder (round-robin)
+        st.session_state.group_chat['responder_idx'] = (responder_idx + 1) % len(st.session_state.group_chat['bots'])
+        st.rerun()
+
+    # Fixed End Chat button
+    if st.button("❌ End Group Chat"):
+        st.session_state.group_chat['active'] = False
+        st.session_state.page = "group_setup"  # Explicitly set the page
+        return  # Exit the function immediately
 
 def handle_group_chat_response(prompt):
     """Handle user message and generate bot response"""
