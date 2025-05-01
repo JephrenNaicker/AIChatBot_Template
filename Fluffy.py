@@ -9,7 +9,9 @@ from langchain.prompts import PromptTemplate
 from langchain.schema.runnable import RunnableSequence
 from langchain_core.exceptions import OutputParserException, LangChainException
 from langchain_ollama import OllamaLLM
-from TTS.api import TTS
+
+
+##from TTS.api import TTS
 
 # CONSTANTS
 PAGES = {
@@ -273,8 +275,7 @@ class StoryChatBot:
             st.session_state.memory = ConversationBufferWindowMemory(
                 k=50,  # Remember last 50 exchanges
                 return_messages=True,
-                memory_key="chat_history",
-                output_key="output"
+                memory_key="chat_history"
             )
 
     def _init_session_state(self):
@@ -294,34 +295,37 @@ class StoryChatBot:
 
         if current_bot:
             personality = current_bot.get("personality", {})
-            # Enhanced prompt template with stronger personality enforcement
-            prompt_template = f"""
-               You are {bot_name} ({current_bot['emoji']}), {current_bot['desc']}.
 
-               Personality Rules (MUST FOLLOW):
-               - Name: Always respond as {bot_name}
-               - Personality Traits: {', '.join(personality.get('traits', []))}
-               - Speech Pattern: {personality.get('speech_pattern', 'neutral')}
-               - Quirks: {', '.join(personality.get('quirks', []))}
-               - Never break character!
-               - Never mention 'user_input' or ask for input - just respond naturally
-               - If asked about your name, respond with "{bot_name}"
+            # Unified template that works for both single and group chats
+            prompt_template = f"""You are {bot_name} ({current_bot['emoji']}), {current_bot['desc']}.
+			
+			[Your Personality Rules]
+			- Always respond as {bot_name}
+			- Traits: {', '.join(personality.get('traits', []))}
+			- Speech: {personality.get('speech_pattern', 'neutral')}
+			- Quirks: {', '.join(personality.get('quirks', []))}
+		     - Never break character!
+             - Never mention 'user_input' or ask for input - just respond as your character
+			[Your Memory]
+			{{chat_history}}
+		
+			User: {{user_input}}
+		
+			{bot_name}:"""
 
-               Chat History: {{chat_history}}
-
-               User: {{user_input}}
-
-               {bot_name}:
-               """
+            self.dialog_chain = RunnableSequence(
+                PromptTemplate(
+                    input_variables=["user_input", "chat_history"],
+                    template=prompt_template
+                ) | self.llm
+            )
         else:
-            prompt_template = "Respond to the user: {{user_input}}"
-
-        self.dialog_chain = RunnableSequence(
-            PromptTemplate(
-                input_variables=["user_input", "chat_history"],
-                template=prompt_template
-            ) | self.llm
-        )
+            self.dialog_chain = RunnableSequence(
+                PromptTemplate(
+                    input_variables=["user_input"],
+                    template="Respond to the user: {{user_input}}"
+                ) | self.llm
+            )
 
     def _process_memory(self, user_input: str, response: str):
         """Update conversation memory"""
@@ -359,22 +363,74 @@ class StoryChatBot:
     def generate_response(self, user_input: str) -> str:
         """Generate response with memory support"""
         try:
+            # Debug: Print memory state
+            print("Memory state:", st.session_state.memory)
+
             # Get conversation history from memory
             history = st.session_state.memory.load_memory_variables({})
+            print("Loaded history:", history)
+
+            # Prepare inputs
+            chain_inputs = {
+                "user_input": user_input,
+                "chat_history": history.get("chat_history", []),
+            }
 
             # Use the dialog chain with memory context
-            response = self.dialog_chain.invoke({
-                "user_input": user_input,
-                "chat_history": history.get("chat_history", "")
-            })
+            response = self.dialog_chain.invoke(chain_inputs)
 
             # Update memory
             self._process_memory(user_input, response)
             return response
 
         except Exception as e:
+            import traceback
             st.error(f"Response generation failed: {str(e)}")
+            st.text(traceback.format_exc())  # Show full traceback
             return "❌ Sorry, I encountered an error. Please try again."
+
+    def generate_group_response(self, bot: dict, prompt: str, shared_history: str) -> str:
+        """Specialized response generator for group chats"""
+        try:
+            # Get this bot's personality memory
+            personality_memory = st.session_state.group_chat['personality_memories'][bot['name']]
+            personality_history = personality_memory.load_memory_variables({}).get("chat_history", [])
+
+            # Format the personality history
+            formatted_personality_history = "\n".join(
+                f"{msg.type.capitalize()}: {msg.content}"
+                for msg in personality_history
+                if hasattr(msg, 'type') and hasattr(msg, 'content')
+            )
+
+            # Create the full prompt with bot personality and both histories
+            prompt_template = f"""You are {bot['name']} ({bot['emoji']}), {bot['desc']}.
+
+            [Your Personality Rules]
+            - Always respond as {bot['name']}
+            - Traits: {', '.join(bot['personality'].get('traits', []))}
+            - Speech: {bot['personality'].get('speech_pattern', 'neutral')}
+            - Quirks: {', '.join(bot['personality'].get('quirks', []))}
+
+            [Group Conversation History]
+            {shared_history}
+
+            [Your Private Memory]
+            {formatted_personality_history}
+
+            User: {prompt}
+
+            {bot['name']}:"""
+
+            # Generate response
+            response = self.llm.invoke(prompt_template)
+
+            # Update memories (handled by GroupChatManager)
+            return response.strip()
+
+        except Exception as e:
+            st.error(f"Group response generation failed: {str(e)}")
+            return f"❌ {bot['name']} encountered an error. Please try again."
 
     def generate_greeting(self):
         try:
@@ -564,53 +620,6 @@ class PagesManager:
                 any(search_query.lower() in tag.lower() for tag in bot.get("tags", [])))
         ]
 
-
-        # Custom CSS to make the grid full-width and improve visibility
-        st.markdown("""
-        <style>
-            .full-width-grid {
-                width: 100%;
-                margin-left: -1rem;
-                margin-right: -1rem;
-                padding: 0 1rem;
-            }
-            .bot-card {
-                border: 1px solid #444;
-                border-radius: 8px;
-                padding: 1rem;
-                height: 180px;
-                display: flex;
-                flex-direction: column;
-                align-items: center;
-                justify-content: center;
-                text-align: center;
-                background: #1e1e1e;  /* Dark background */
-                box-shadow: 0 1px 2px rgba(0,0,0,0.1);
-            }
-            .bot-card h3 {
-                margin: 8px 0;
-                font-size: 1.1rem;
-                color: #f0f0f0;  /* Light text for dark background */
-            }
-            .bot-card p {
-                margin: 0;
-                font-size: 0.85rem;
-                color: #bbb;  /* Lighter gray for description */
-            }
-            .bot-emoji {
-                font-size: 2.2rem;
-                margin-bottom: 8px;
-            }
-            .section-header {
-                color: #f0f0f0;
-                font-size: 1.2rem;
-                margin: 1.5rem 0 0.5rem 0;
-                padding-bottom: 0.5rem;
-                border-bottom: 1px solid #444;
-            }
-        </style>
-        """, unsafe_allow_html=True)
-
         # Create full-width container for the grid
         st.markdown('<div class="full-width-grid">', unsafe_allow_html=True)
 
@@ -620,13 +629,21 @@ class PagesManager:
             for i, bot in enumerate(filtered_default_bots):
                 with cols[i % 3]:
                     with st.container():
+                        # Build tags HTML
+                        tags_html = ""
+                        if bot.get('tags'):
+                            tags_html = '<div class="tags-container">' + \
+                                        ''.join([f'<span class="bot-tag">{tag}</span>' for tag in bot['tags']]) + \
+                                        '</div>'
+
                         st.markdown(f"""
-                        <div class="bot-card">
-                            <div class="bot-emoji">{bot['emoji']}</div>
-                            <h3>{bot['name']}</h3>
-                            <p>{bot['desc']}</p>
-                        </div>
-                        """, unsafe_allow_html=True)
+                                            <div class="bot-card">
+                                                <div class="bot-emoji">{bot['emoji']}</div>
+                                                <h3>{bot['name']}</h3>
+                                                <p>{bot['desc']}</p>
+                                                {tags_html}
+                                            </div>
+                                            """, unsafe_allow_html=True)
 
                         if st.button(f"Chat with {bot['name']}",
                                      key=f"start_{bot['name']}",
@@ -642,13 +659,20 @@ class PagesManager:
             for i, bot in enumerate(filtered_user_bots):
                 with cols[i % 3]:
                     with st.container():
+                        tags_html = ""
+                        if bot.get('tags'):
+                            tags_html = '<div class="tags-container">' + \
+                                        ''.join([f'<span class="bot-tag">{tag}</span>' for tag in bot['tags']]) + \
+                                        '</div>'
+
                         st.markdown(f"""
-                        <div class="bot-card">
-                            <div class="bot-emoji">{bot['emoji']}</div>
-                            <h3>{bot['name']}</h3>
-                            <p>{bot['desc']}</p>
-                        </div>
-                        """, unsafe_allow_html=True)
+                                            <div class="bot-card">
+                                                <div class="bot-emoji">{bot['emoji']}</div>
+                                                <h3>{bot['name']}</h3>
+                                                <p>{bot['desc']}</p>
+                                                {tags_html}
+                                            </div>
+                                            """, unsafe_allow_html=True)
 
                         if st.button(f"Chat with {bot['name']}",
                                      key=f"start_custom_{bot['name']}",
@@ -1177,193 +1201,193 @@ class PagesManager:
             st.rerun()
 
     @staticmethod
-    def voice_page():
-        st.title("🎙️ Voice Selection")
-        # Initialize TTS with error handling
-        tts = None
-        tts_available = False
-
-        try:
-            # Try to initialize with a simpler model first
-            with st.spinner("Loading voice engine..."):
-                tts = TTS(model_name="tts_models/en/ljspeech/tacotron2-DDC", progress_bar=False)
-                tts_available = True
-        except Exception as e:
-            st.warning(f"⚠️ Could not initialize TTS: {str(e)}")
-            st.info("Voice previews will not be available, but you can still select voices.")
-
-        # Define the path to your audio file
-        STORYTELLER_AUDIO_PATH = "Audio/Storyteller_Audio.wav"  # Relative path from your script
-
-        # Voice options with emotional variants
-        VOICE_OPTIONS = {
-            "Friendly": {
-                "description": "Warm and approachable tone",
-                "sample": "Hey...I'm very shy",
-                "speaker_idx": 5,  # VITS speaker ID
-                "icon": "😊",
-                "color": "#4CAF50"
-            },
-            "Professional": {
-                "description": "Clear and articulate delivery",
-                "samples": {
-                    "default": "The quarterly report shows a 12% increase.",
-                    "serious": "<speak><prosody rate='slow' pitch='low'>This matter requires immediate attention.</prosody></speak>",
-                    "confident": "<speak><prosody rate='medium' pitch='medium'>I'm certain we can meet our targets.</prosody></speak>"
-                },
-                "speaker_idx": 10,
-                "icon": "💼",
-                "color": "#2196F3"
-            },
-            "Storyteller": {
-                "description": "Expressive and dramatic",
-                "samples": {
-                    "default": "Once upon a time, in a land far away...",
-                    "mysterious": "<speak><prosody rate='slow' pitch='low'>Something lurked in the shadows...</prosody></speak>",
-                    "excited": "<speak><prosody rate='fast' pitch='high'>And then the dragon appeared!</prosody></speak>"
-                },
-                "speaker_idx": 15,
-                "icon": "📖",
-                "color": "#9C27B0"
-            },
-            "Robotic": {
-                "description": "Futuristic digital voice",
-                "samples": {
-                    "default": "Beep boop. Systems operational.",
-                    "alert": "<speak><prosody rate='fast' pitch='high'>Warning! Warning!</prosody></speak>",
-                    "mechanical": "<speak><prosody rate='slow' pitch='low'>Processing.complete.</prosody></speak>"
-                },
-                "speaker_idx": 20,
-                "icon": "🤖",
-                "color": "#607D8B"
-            }
-        }
-
-        # CSS (same as before)
-        st.markdown("""
-            <style>
-                /* Your existing CSS styles */
-                .emotion-btn {
-                    margin: 0.2rem;
-                    padding: 0.3rem 0.5rem;
-                    font-size: 0.8rem;
-                }
-            </style>
-            """, unsafe_allow_html=True)
-
-        # CSS for voice cards (same as before)
-        st.markdown("""
-           <style>
-               .voice-card {
-                   border: 1px solid #e0e0e0;
-                   border-radius: 8px;
-                   padding: 1rem;
-                   margin-bottom: 1rem;
-                   background: white;
-               }
-               .voice-header {
-                   display: flex;
-                   align-items: center;
-                   gap: 10px;
-                   margin-bottom: 0.5rem;
-               }
-               .voice-name {
-                   font-weight: bold;
-                   font-size: 1.1rem;
-                   color: #333;
-               }
-               .voice-desc {
-                   color: #555;
-                   margin-bottom: 0.5rem;
-               }
-               .voice-preview {
-                   margin-top: 0.5rem;
-                   border-left: 3px solid #7B1FA2;
-                   padding-left: 1rem;
-               }
-               audio {
-                   width: 100%;
-                   margin-top: 0.5rem;
-               }
-               .audio-container {
-                   background: #f5f5f5;
-                   padding: 1rem;
-                   border-radius: 8px;
-                   margin: 0.5rem 0;
-               }
-               .selected-badge {
-                   color: #4CAF50;
-                   font-weight: bold;
-                   margin-left: auto;
-               }
-           </style>
-           """, unsafe_allow_html=True)
-
-        # Create audio directory if it doesn't exist
-        os.makedirs(DEFAULT_BOT_DIR, exist_ok=True)
-        selected_voice = st.session_state.get("selected_voice", "Friendly")
-
-        for voice_name, voice_data in VOICE_OPTIONS.items():
-            with st.container():
-                # Voice display
-                st.markdown(f"""
-                       <div style="color:{voice_data['color']}; font-size:1.2rem;">
-                           {voice_data['icon']} {voice_name}
-                       </div>
-                       <div style="color:#555; margin-bottom:0.5rem;">
-                           {voice_data['description']}
-                       </div>
-                   """, unsafe_allow_html=True)
-
-                # Preview button
-                if st.button(
-                        "▶️ Preview",
-                        key=f"preview_{voice_name}",
-                        disabled=not tts_available,
-                        help="Preview voice (requires TTS)" if tts_available else "TTS not available"
-                ):
-                    try:
-                        audio_path = os.path.join(DEFAULT_BOT_DIR, f"{voice_name}.wav")
-
-                        # Generate the audio file
-                        with st.spinner("Generating voice preview..."):
-                            tts.tts_to_file(
-                                text=voice_data["sample"],
-                                file_path=audio_path
-                            )
-
-                        # Play the audio
-                        st.audio(audio_path, format='audio/wav')
-
-                    except Exception as e:
-                        st.error(f"Failed to generate preview: {str(e)}")
-                        st.error(f"Debug info - Model: {tts.model_name}, Sample: {voice_data['sample']}")
-
-                # Select button
-                if st.button(
-                        "✅ Select" if voice_name != selected_voice else "✓ Selected",
-                        key=f"select_{voice_name}",
-                        disabled=voice_name == selected_voice
-                ):
-                    st.session_state.selected_voice = voice_name
-                    st.toast(f"{voice_name} voice selected!", icon="🎙️")
-                    st.rerun()
-
-                st.divider()
-
-        # Troubleshooting section
-        with st.expander("ℹ️ Troubleshooting"):
-            st.write("If voice previews aren't working:")
-            st.write("1. Make sure you have a stable internet connection")
-            st.write("2. Models will download automatically on first use")
-            st.write("3. Try refreshing the page if previews fail")
-
-            if st.button("🔄 Retry TTS Initialization"):
-                st.rerun()
-
-        if st.button("🔙 Back"):
-            st.session_state.page = "home"
-            st.rerun()
+    # def voice_page():
+    #     st.title("🎙️ Voice Selection")
+    #     # Initialize TTS with error handling
+    #     tts = None
+    #     tts_available = False
+    #
+    #     try:
+    #         # Try to initialize with a simpler model first
+    #         with st.spinner("Loading voice engine..."):
+    #             tts = TTS(model_name="tts_models/en/ljspeech/tacotron2-DDC", progress_bar=False)
+    #             tts_available = True
+    #     except Exception as e:
+    #         st.warning(f"⚠️ Could not initialize TTS: {str(e)}")
+    #         st.info("Voice previews will not be available, but you can still select voices.")
+    #
+    #     # Define the path to your audio file
+    #     STORYTELLER_AUDIO_PATH = "Audio/Storyteller_Audio.wav"  # Relative path from your script
+    #
+    #     # Voice options with emotional variants
+    #     VOICE_OPTIONS = {
+    #         "Friendly": {
+    #             "description": "Warm and approachable tone",
+    #             "sample": "Hey...I'm very shy",
+    #             "speaker_idx": 5,  # VITS speaker ID
+    #             "icon": "😊",
+    #             "color": "#4CAF50"
+    #         },
+    #         "Professional": {
+    #             "description": "Clear and articulate delivery",
+    #             "samples": {
+    #                 "default": "The quarterly report shows a 12% increase.",
+    #                 "serious": "<speak><prosody rate='slow' pitch='low'>This matter requires immediate attention.</prosody></speak>",
+    #                 "confident": "<speak><prosody rate='medium' pitch='medium'>I'm certain we can meet our targets.</prosody></speak>"
+    #             },
+    #             "speaker_idx": 10,
+    #             "icon": "💼",
+    #             "color": "#2196F3"
+    #         },
+    #         "Storyteller": {
+    #             "description": "Expressive and dramatic",
+    #             "samples": {
+    #                 "default": "Once upon a time, in a land far away...",
+    #                 "mysterious": "<speak><prosody rate='slow' pitch='low'>Something lurked in the shadows...</prosody></speak>",
+    #                 "excited": "<speak><prosody rate='fast' pitch='high'>And then the dragon appeared!</prosody></speak>"
+    #             },
+    #             "speaker_idx": 15,
+    #             "icon": "📖",
+    #             "color": "#9C27B0"
+    #         },
+    #         "Robotic": {
+    #             "description": "Futuristic digital voice",
+    #             "samples": {
+    #                 "default": "Beep boop. Systems operational.",
+    #                 "alert": "<speak><prosody rate='fast' pitch='high'>Warning! Warning!</prosody></speak>",
+    #                 "mechanical": "<speak><prosody rate='slow' pitch='low'>Processing.complete.</prosody></speak>"
+    #             },
+    #             "speaker_idx": 20,
+    #             "icon": "🤖",
+    #             "color": "#607D8B"
+    #         }
+    #     }
+    #
+    #     # CSS (same as before)
+    #     st.markdown("""
+    #         <style>
+    #             /* Your existing CSS styles */
+    #             .emotion-btn {
+    #                 margin: 0.2rem;
+    #                 padding: 0.3rem 0.5rem;
+    #                 font-size: 0.8rem;
+    #             }
+    #         </style>
+    #         """, unsafe_allow_html=True)
+    #
+    #     # CSS for voice cards (same as before)
+    #     st.markdown("""
+    #        <style>
+    #            .voice-card {
+    #                border: 1px solid #e0e0e0;
+    #                border-radius: 8px;
+    #                padding: 1rem;
+    #                margin-bottom: 1rem;
+    #                background: white;
+    #            }
+    #            .voice-header {
+    #                display: flex;
+    #                align-items: center;
+    #                gap: 10px;
+    #                margin-bottom: 0.5rem;
+    #            }
+    #            .voice-name {
+    #                font-weight: bold;
+    #                font-size: 1.1rem;
+    #                color: #333;
+    #            }
+    #            .voice-desc {
+    #                color: #555;
+    #                margin-bottom: 0.5rem;
+    #            }
+    #            .voice-preview {
+    #                margin-top: 0.5rem;
+    #                border-left: 3px solid #7B1FA2;
+    #                padding-left: 1rem;
+    #            }
+    #            audio {
+    #                width: 100%;
+    #                margin-top: 0.5rem;
+    #            }
+    #            .audio-container {
+    #                background: #f5f5f5;
+    #                padding: 1rem;
+    #                border-radius: 8px;
+    #                margin: 0.5rem 0;
+    #            }
+    #            .selected-badge {
+    #                color: #4CAF50;
+    #                font-weight: bold;
+    #                margin-left: auto;
+    #            }
+    #        </style>
+    #        """, unsafe_allow_html=True)
+    #
+    #     # Create audio directory if it doesn't exist
+    #     os.makedirs(DEFAULT_BOT_DIR, exist_ok=True)
+    #     selected_voice = st.session_state.get("selected_voice", "Friendly")
+    #
+    #     for voice_name, voice_data in VOICE_OPTIONS.items():
+    #         with st.container():
+    #             # Voice display
+    #             st.markdown(f"""
+    #                    <div style="color:{voice_data['color']}; font-size:1.2rem;">
+    #                        {voice_data['icon']} {voice_name}
+    #                    </div>
+    #                    <div style="color:#555; margin-bottom:0.5rem;">
+    #                        {voice_data['description']}
+    #                    </div>
+    #                """, unsafe_allow_html=True)
+    #
+    #             # Preview button
+    #             if st.button(
+    #                     "▶️ Preview",
+    #                     key=f"preview_{voice_name}",
+    #                     disabled=not tts_available,
+    #                     help="Preview voice (requires TTS)" if tts_available else "TTS not available"
+    #             ):
+    #                 try:
+    #                     audio_path = os.path.join(DEFAULT_BOT_DIR, f"{voice_name}.wav")
+    #
+    #                     # Generate the audio file
+    #                     with st.spinner("Generating voice preview..."):
+    #                         tts.tts_to_file(
+    #                             text=voice_data["sample"],
+    #                             file_path=audio_path
+    #                         )
+    #
+    #                     # Play the audio
+    #                     st.audio(audio_path, format='audio/wav')
+    #
+    #                 except Exception as e:
+    #                     st.error(f"Failed to generate preview: {str(e)}")
+    #                     st.error(f"Debug info - Model: {tts.model_name}, Sample: {voice_data['sample']}")
+    #
+    #             # Select button
+    #             if st.button(
+    #                     "✅ Select" if voice_name != selected_voice else "✓ Selected",
+    #                     key=f"select_{voice_name}",
+    #                     disabled=voice_name == selected_voice
+    #             ):
+    #                 st.session_state.selected_voice = voice_name
+    #                 st.toast(f"{voice_name} voice selected!", icon="🎙️")
+    #                 st.rerun()
+    #
+    #             st.divider()
+    #
+    #     # Troubleshooting section
+    #     with st.expander("ℹ️ Troubleshooting"):
+    #         st.write("If voice previews aren't working:")
+    #         st.write("1. Make sure you have a stable internet connection")
+    #         st.write("2. Models will download automatically on first use")
+    #         st.write("3. Try refreshing the page if previews fail")
+    #
+    #         if st.button("🔄 Retry TTS Initialization"):
+    #             st.rerun()
+    #
+    #     if st.button("🔙 Back"):
+    #         st.session_state.page = "home"
+    #         st.rerun()
 
     @staticmethod
     def chat_page(bot_name):
@@ -1636,7 +1660,7 @@ class BotManager:
         """Handle form submission and bot creation"""
         if not form_data["basic"]["name"]:
             st.error("Please give your bot a name")
-        elif len(form_data["basic"]["emoji"]) > 2:
+        elif len(form_data["basic"]["emoji"]) <2:
             st.error("Emoji should be 1-2 characters max")
         else:
             new_bot = {
@@ -1974,52 +1998,10 @@ class Navigation:
 # === GROUP CHAT MANAGER ===
 class GroupChatManager:
     @staticmethod
+    @staticmethod
     def show_group_setup():
         """Enhanced group chat setup with search and pagination"""
         st.title("👥 Setup Group Chat")
-
-        # Custom CSS for better layout
-        st.markdown("""
-        <style>
-            .bot-selection-card {
-                border: 1px solid #444;
-                border-radius: 10px;
-                padding: 1rem;
-                margin-bottom: 1rem;
-                background: #1e1e1e;
-                transition: transform 0.2s;
-            }
-            .bot-selection-card:hover {
-                transform: translateY(-2px);
-                box-shadow: 0 4px 8px rgba(0,0,0,0.2);
-            }
-            .bot-selection-header {
-                display: flex;
-                align-items: center;
-                gap: 10px;
-                margin-bottom: 0.5rem;
-            }
-            .search-container {
-                margin-bottom: 1.5rem;
-            }
-            .selected-bots-container {
-                margin: 1.5rem 0;
-                padding: 1rem;
-                border-radius: 10px;
-                background: #1a1a1a;
-            }
-            .bot-tag {
-                background: #2a3b4d;
-                color: #7fbbde;
-                padding: 0.3rem 0.8rem;
-                border-radius: 1rem;
-                font-size: 0.85rem;
-                display: inline-block;
-                margin-right: 0.5rem;
-                margin-bottom: 0.5rem;
-            }
-        </style>
-        """, unsafe_allow_html=True)
 
         # Search functionality
         with st.container():
@@ -2094,24 +2076,24 @@ class GroupChatManager:
             end_idx = min(start_idx + BOTS_PER_PAGE, len(all_bots))
             current_page_bots = all_bots[start_idx:end_idx]
 
-            # Display in 3-column grid
+            # Display in 3-column grid using the same card style as home page
             cols = st.columns(3)
             for i, bot in enumerate(current_page_bots):
                 with cols[i % 3]:
                     with st.container():
-                        # Bot card
+                        # Use the same card structure as home page
+                        tags_html = ""
+                        if bot.get('tags'):
+                            tags_html = '<div class="tags-container">' + \
+                                        ''.join([f'<span class="bot-tag">{tag}</span>' for tag in bot['tags']]) + \
+                                        '</div>'
+
                         st.markdown(f"""
-                        <div class="bot-selection-card">
-                            <div class="bot-selection-header">
-                                <div style="font-size: 1.5rem;">{bot['emoji']}</div>
-                                <div>
-                                    <strong>{bot['name']}</strong><br>
-                                    <small>{bot['desc']}</small>
-                                </div>
-                            </div>
-                            <div style="margin-top: 0.5rem;">
-                                {''.join(f'<span class="bot-tag">{tag}</span>' for tag in bot.get('tags', []))}
-                            </div>
+                        <div class="bot-card">
+                            <div class="bot-emoji">{bot['emoji']}</div>
+                            <h3>{bot['name']}</h3>
+                            <p>{bot['desc']}</p>
+                            {tags_html}
                         </div>
                         """, unsafe_allow_html=True)
 
@@ -2128,7 +2110,7 @@ class GroupChatManager:
                             st.session_state.group_chat['bots'].append(bot)
                             st.rerun()
 
-        # Selected bots section
+        # Selected bots section - keep this as is since it's different from home page
         if st.session_state.group_chat['bots']:
             with st.container():
                 st.subheader("Your Group (Selected Bots)")
@@ -2138,13 +2120,9 @@ class GroupChatManager:
                 for i, bot in enumerate(st.session_state.group_chat['bots']):
                     with selected_cols[i % len(selected_cols)]:
                         st.markdown(f"""
-                        <div class="bot-selection-card">
-                            <div class="bot-selection-header">
-                                <div style="font-size: 1.5rem;">{bot['emoji']}</div>
-                                <div>
-                                    <strong>{bot['name']}</strong>
-                                </div>
-                            </div>
+                        <div class="bot-card">
+                            <div class="bot-emoji">{bot['emoji']}</div>
+                            <h3>{bot['name']}</h3>
                         </div>
                         """, unsafe_allow_html=True)
 
@@ -2169,72 +2147,153 @@ class GroupChatManager:
                 st.rerun()
 
         with action_cols[2]:
-            if st.button(
-                    "🚀 Start Group Chat",
-                    type="primary",
-                    disabled=len(st.session_state.group_chat['bots']) == 0,
-                    use_container_width=True
-            ):
+            if st.button("🚀 Start Group Chat", type="primary"):
                 st.session_state.group_chat['active'] = True
-                st.session_state.group_chat['history'] = []
+                st.session_state.group_chat['histories'] = {}
+                st.session_state.group_chat['personality_memories'] = {}
+
+                # Initialize each bot's memory
+                for bot in st.session_state.group_chat['bots']:
+                    bot_name = bot['name']
+                    st.session_state.group_chat['histories'][bot_name] = []
+                    st.session_state.group_chat['personality_memories'][bot_name] = (
+                        ConversationBufferWindowMemory(
+                            k=30,  # Larger memory for personality
+                            return_messages=True,
+                            memory_key="chat_history"
+                        )
+                    )
+
+                # Reset shared memory
+                st.session_state.group_chat['shared_memory'] = (
+                    ConversationBufferWindowMemory(
+                        k=20,
+                        return_messages=True,
+                        memory_key="shared_history"
+                    )
+                )
+
+                st.session_state.group_chat['responder_idx'] = 0
                 st.rerun()
 
     @staticmethod
     def show_active_group_chat():
-        """Display the active group chat with clean two-part layout"""
+        """Display the active group chat with bot selection controls"""
         st.title("👥 Group Chat")
+
+        auto_mode = st.checkbox(
+            "🤖 Auto Mode (Bots talk to each other)",
+            value=st.session_state.group_chat.get('auto_mode', False),
+            key="auto_mode_toggle"
+        )
+        st.session_state.group_chat['auto_mode'] = auto_mode
+
+        if auto_mode:
+            if st.button("⏸️ Pause Auto Mode"):
+                st.session_state.group_chat['auto_mode'] = False
+                st.rerun()
+        else:
+            if st.button("▶️ Start Auto Mode"):
+                st.session_state.group_chat['auto_mode'] = True
+                st.rerun()
 
         # --- Top Section: Bot Selector ---
         with st.container():
             bots = st.session_state.group_chat['bots']
-            num_cols = min(3, len(bots))  # Max 3 columns
+            num_cols = min(3, len(bots))
             cols = st.columns(num_cols)
 
-            for idx, bot in enumerate(bots):
-                with cols[idx % num_cols]:
-                    # Highlight active bot with a badge
-                    if idx == st.session_state.group_chat.get('responder_idx', 0):
-                        st.markdown(f"🎙️ **{bot['emoji']} {bot['name']}**")
-                    else:
-                        st.markdown(f"{bot['emoji']} {bot['name']}")
+            # Create a radio button to select which bot should respond next
+            responder_options = [f"{bot['emoji']} {bot['name']}" for bot in bots]
+            selected_bot = st.radio(
+                "Select which bot should respond next:",
+                responder_options,
+                index=st.session_state.group_chat.get('responder_idx', 0),
+                horizontal=True,
+                key="bot_selector"
+            )
 
-        st.divider()  # Clean separation
+            # Update the responder index
+            st.session_state.group_chat['responder_idx'] = responder_options.index(selected_bot)
 
-        # --- Middle Section: Chat History ---
-        for message in st.session_state.group_chat['history']:
-            role, content, bot_name = message
-            bot = next((b for b in st.session_state.group_chat['bots'] if b['name'] == bot_name), None)
-            avatar = bot['emoji'] if bot and role == "assistant" else None
+        st.divider()
 
-            with st.chat_message(role, avatar=avatar):
-                if role == "assistant":
-                    st.markdown(f"**{bot_name}**: {content}")
-                else:
-                    st.markdown(content)
+        # --- Middle Section: Combined Chat History ---
+        displayed_messages = set()  # Track displayed messages to avoid duplicates
+
+        for bot in st.session_state.group_chat['bots']:
+            bot_name = bot['name']
+            history = st.session_state.group_chat['histories'][bot_name]
+
+            for role, message in history:
+                message_id = f"{role}_{message[:50]}"  # First 50 chars as ID
+
+                if message_id not in displayed_messages:
+                    displayed_messages.add(message_id)
+                    avatar = bot['emoji'] if role == "assistant" else None
+
+                    with st.chat_message(role, avatar=avatar):
+                        if role == "assistant":
+                            st.markdown(f"**{bot_name}**: {message}")
+                        else:
+                            st.markdown(message)
 
         # --- Bottom Section: Input & Controls ---
-        if prompt := st.chat_input("Type your message..."):
-            # Add user message
-            st.session_state.group_chat['history'].append(("user", prompt, None))
+        input_col, action_col = st.columns([4, 1])
 
-            # Get responder
-            responder_idx = st.session_state.group_chat['responder_idx']
-            responder_bot = st.session_state.group_chat['bots'][responder_idx]
+        with input_col:
+            prompt = st.chat_input("Type your message...")
 
-            # Generate response
+        with action_col:
+            if st.button("🤖 Let Bot Respond", key="bot_response_btn"):
+                # Trigger a bot-to-bot response
+                GroupChatManager.generate_bot_to_bot_response()
+                st.rerun()
+
+        if prompt:
+            # Add user message to all bots' histories
+            for bot in st.session_state.group_chat['bots']:
+                bot_name = bot['name']
+                st.session_state.group_chat['histories'][bot_name].append(("user", prompt))
+
+            # Generate response from selected bot
+            responder_bot = st.session_state.group_chat['bots'][st.session_state.group_chat['responder_idx']]
             with st.spinner(f"{responder_bot['name']} is thinking..."):
                 response = GroupChatManager.generate_bot_response(responder_bot, prompt)
-                st.session_state.group_chat['history'].append(("assistant", response, responder_bot['name']))
+                st.rerun()
 
-            # Update responder (round-robin)
-            st.session_state.group_chat['responder_idx'] = (responder_idx + 1) % len(st.session_state.group_chat['bots'])
-            st.rerun()
-
-        # Fixed End Chat button
         if st.button("❌ End Group Chat"):
             st.session_state.group_chat['active'] = False
-            st.session_state.page = "group_setup"  # Explicitly set the page
-            return  # Exit the function immediately
+            st.rerun()
+
+    @staticmethod
+    def generate_bot_to_bot_response():
+        """Generate a response from the selected bot to continue the conversation"""
+        if not st.session_state.group_chat['bots']:
+            return
+
+        # Get the last message in the conversation (from any bot)
+        last_message = None
+        for bot in st.session_state.group_chat['bots']:
+            history = st.session_state.group_chat['histories'][bot['name']]
+            if history and history[-1][0] == "assistant":
+                last_message = history[-1][1]
+                break
+
+        if not last_message:
+            return  # No messages to respond to
+
+        # Get the responding bot
+        responder_bot = st.session_state.group_chat['bots'][st.session_state.group_chat['responder_idx']]
+
+        # Generate response
+        with st.spinner(f"{responder_bot['name']} is thinking..."):
+            response = GroupChatManager.generate_bot_response(responder_bot, last_message)
+
+            # Add the response to all bots' histories
+            for bot in st.session_state.group_chat['bots']:
+                bot_name = bot['name']
+                st.session_state.group_chat['histories'][bot_name].append(("assistant", response))
 
     @staticmethod
     def handle_group_chat_response(prompt):
@@ -2265,159 +2324,171 @@ class GroupChatManager:
         st.session_state.group_chat['active'] = False
         st.rerun()
 
+
     @staticmethod
     def generate_bot_response(bot, prompt):
-        """Generate response from a specific bot"""
-        chatbot = StoryChatBot()
-        # Set the selected bot in session state so the chatbot uses its personality
-        st.session_state.selected_bot = bot['name']
-        return chatbot.generate_response(prompt)
+        """Generate response for group chat using specialized group method"""
+        bot_name = bot['name']
 
+        # Get memories
+        personality_memory = st.session_state.group_chat['personality_memories'][bot_name]
+        shared_memory = st.session_state.group_chat['shared_memory']
+
+        # Format shared history
+        shared_history = "\n".join(
+            f"{msg.type.capitalize()}: {msg.content}"
+            for msg in shared_memory.load_memory_variables({}).get("chat_history", [])
+            if hasattr(msg, 'type') and hasattr(msg, 'content')
+        )
+
+        # Create chatbot instance
+        chatbot = StoryChatBot()
+
+        # Generate response using the group-specific method
+        response = chatbot.generate_group_response(bot, prompt, shared_history)
+
+        # Update both memories
+        personality_memory.save_context({"input": prompt}, {"output": response})
+        shared_memory.save_context({"input": prompt}, {"output": response})
+
+        # Add to this bot's history
+        st.session_state.group_chat['histories'][bot_name].append(("assistant", response))
+
+        return response
+
+class Styles:
+    """Centralized CSS styles for the entire application"""
+
+    @staticmethod
+    def global_css():
+        """All global CSS styles including bot cards and main layout"""
+        return """
+           <style>
+               /* === Bot Cards (used in home page and group setup) === */
+               .bot-card {
+                   border: 1px solid #444;
+                   border-radius: 8px;
+                   padding: 1rem;
+                   height: 220px;
+                   display: flex;
+                   flex-direction: column;
+                   align-items: center;
+                   justify-content: center;
+                   text-align: center;
+                   background: #1e1e1e;
+                   box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+                   transition: transform 0.2s;
+               }
+               .bot-card:hover {
+                   transform: translateY(-2px);
+                   box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+               }
+               .bot-card h3 {
+                   margin: 8px 0;
+                   font-size: 1.1rem;
+                   color: #f0f0f0;
+               }
+               .bot-card p {
+                   margin: 0;
+                   font-size: 0.85rem;
+                   color: #bbb;
+               }
+               .bot-emoji {
+                   font-size: 2.2rem;
+                   margin-bottom: 8px;
+               }
+               .bot-tag {
+                   background: #2a3b4d;
+                   color: #7fbbde;
+                   padding: 0.2rem 0.6rem;
+                   border-radius: 1rem;
+                   font-size: 0.75rem;
+                   display: inline-block;
+                   margin: 0.2rem;
+               }
+               .tags-container {
+                   display: flex;
+                   flex-wrap: wrap;
+                   justify-content: center;
+                   margin-top: 0.5rem;
+                   max-height: 60px;
+                   overflow-y: auto;
+               }
+               .full-width-grid {
+                   width: 100%;
+                   margin-left: -1rem;
+                   margin-right: -1rem;
+                   padding: 0 1rem;
+               }
+               .section-header {
+                   color: #f0f0f0;
+                   font-size: 1.2rem;
+                   margin: 1.5rem 0 0.5rem 0;
+                   padding-bottom: 0.5rem;
+                   border-bottom: 1px solid #444;
+               }
+
+               /* === Main Layout Styles === */
+               .stButton>button {
+                   border-radius: 8px !important;
+                   padding: 0.6rem 1.2rem !important;
+                   font-size: 1rem !important;
+                   background: linear-gradient(135deg, #6e48aa, #9d50bb) !important;
+                   color: white !important;
+                   border: none !important;
+                   box-shadow: 0 3px 6px rgba(0,0,0,0.2) !important;
+                   transition: all 0.2s !important;
+               }
+               .stButton>button:hover {
+                   transform: translateY(-2px) !important;
+                   box-shadow: 0 5px 10px rgba(0,0,0,0.3) !important;
+               }
+
+               /* === Group Chat Specific === */
+               .bot-selection-card {
+                   border: 1px solid #444;
+                   border-radius: 10px;
+                   padding: 1rem;
+                   margin-bottom: 1rem;
+                   background: #1e1e1e;
+                   transition: transform 0.2s;
+               }
+               .bot-selection-card:hover {
+                   transform: translateY(-2px);
+                   box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+               }
+               .bot-selection-header {
+                   display: flex;
+                   align-items: center;
+                   gap: 10px;
+                   margin-bottom: 0.5rem;
+               }
+               .bot-description {
+                   color: #bbb;
+                   font-size: 0.9rem;
+                   line-height: 1.4;
+               }
+
+               /* === Chat Interface === */
+               .chat-message {
+                   padding: 1rem;
+                   border-radius: 8px;
+                   margin-bottom: 0.5rem;
+               }
+               .user-message {
+                   background-color: #2a3b4d;
+               }
+               .bot-message {
+                   background-color: #1e1e1e;
+               }
+           </style>
+           """
 
 # === MAIN FUNCTION ===
 def main():
-    # Apply custom CSS at the very start
-    st.markdown("""
-      <style>
-          /* Card container */
-          .bot-card {
-              border: 1px solid #444;
-              border-radius: 10px;
-              padding: 1.2rem;
-              height: 280px;
-              display: flex;
-              flex-direction: column;
-              margin-bottom: 1.5rem;
-              background: #1e1e1e;  /* Dark card background */
-              box-shadow: 0 2px 12px rgba(0,0,0,0.3);
-              transition: all 0.2s;
-          }
-          .bot-card:hover {
-              transform: translateY(-3px);
-              box-shadow: 0 6px 16px rgba(0,0,0,0.4);
-              border-color: #555;
-          }
+    # Apply all global CSS at startup
+    st.markdown(Styles.global_css(), unsafe_allow_html=True)
 
-          /* Bot header */
-          .bot-emoji {
-              font-size: 2.4rem;
-              text-align: center;
-              margin-bottom: 0.5rem;
-              filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
-          }
-          .bot-name {
-              font-weight: 600;
-              font-size: 1.3rem;
-              text-align: center;
-              margin-bottom: 0.8rem;
-              color: #f0f0f0;
-              text-shadow: 0 1px 2px rgba(0,0,0,0.3);
-          }
-
-          /* Description */
-          .bot-desc {
-              color: #bbb;
-              font-size: 0.95rem;
-              flex-grow: 1;
-              margin-bottom: 1rem;
-              line-height: 1.5;
-              overflow-y: auto;
-              padding-right: 0.8rem;
-              scrollbar-width: thin;
-              scrollbar-color: #555 #333;
-          }
-          .bot-desc::-webkit-scrollbar {
-              width: 6px;
-          }
-          .bot-desc::-webkit-scrollbar-thumb {
-              background-color: #555;
-              border-radius: 3px;
-          }
-          .bot-desc::-webkit-scrollbar-track {
-              background-color: #333;
-          }
-
-          /* Tags */
-          .bot-tags {
-              display: flex;
-              flex-wrap: wrap;
-              gap: 0.5rem;
-              margin-bottom: 1.2rem;
-              justify-content: center;
-          }
-          .bot-tag {
-              background: #2a3b4d;
-              color: #7fbbde;
-              padding: 0.3rem 0.8rem;
-              border-radius: 1rem;
-              font-size: 0.85rem;
-              border: 1px solid #3a4b5d;
-              white-space: nowrap;
-              box-shadow: 0 1px 2px rgba(0,0,0,0.2);
-          }
-
-          /* Buttons */
-          .bot-actions {
-              display: flex;
-              justify-content: center;
-              gap: 0.8rem;
-              margin-top: auto;
-          }
-          .bot-btn {
-              border: none;
-              border-radius: 8px;
-              padding: 0.4rem 0.9rem;
-              font-size: 0.95rem;
-              cursor: pointer;
-              transition: all 0.2s;
-              box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              min-width: 80px;
-          }
-          .bot-btn-edit {
-              background: #3a4b5d;
-              color: #f0f0f0;
-          }
-          .bot-btn-edit:hover {
-              background: #4a5b6d;
-              transform: translateY(-1px);
-          }
-          .bot-btn-chat {
-              background: #f63366;
-              color: white;
-          }
-          .bot-btn-chat:hover {
-              background: #ff4275;
-              transform: translateY(-1px);
-          }
-          .bot-btn-delete {
-              background: #ff4b4b;
-              color: white;
-          }
-          .bot-btn-delete:hover {
-              background: #ff5a5a;
-              transform: translateY(-1px);
-          }
-
-          /* Create Another Bot button */
-          .stButton>button {
-              border-radius: 8px !important;
-              padding: 0.6rem 1.2rem !important;
-              font-size: 1rem !important;
-              background: linear-gradient(135deg, #6e48aa, #9d50bb) !important;
-              color: white !important;
-              border: none !important;
-              box-shadow: 0 3px 6px rgba(0,0,0,0.2) !important;
-              transition: all 0.2s !important;
-          }
-          .stButton>button:hover {
-              transform: translateY(-2px) !important;
-              box-shadow: 0 5px 10px rgba(0,0,0,0.3) !important;
-          }
-      </style>
-      """, unsafe_allow_html=True)
     # Initialize all session state variables
     if 'page' not in st.session_state:
         st.session_state.page = "home"
@@ -2427,11 +2498,17 @@ def main():
         st.session_state.greeting_sent = False
     if 'group_chat' not in st.session_state:
         st.session_state.group_chat = {
-            'active': False,  # Is group chat active
-            'bots': [],  # List of selected bots
-            'history': [],  # Chat history (role, message, bot_idx)
-            'responder_idx': 0,  # Index of bot who will reply
-            'current_chat': None  # Current chat messages
+            'active': False,
+            'bots': [],
+            'histories': {},
+            'personality_memories': {},
+            'shared_memory': ConversationBufferWindowMemory(
+                k=20,
+                return_messages=True,
+                memory_key="chat_history"
+            ),
+            'responder_idx': 0,
+            'auto_mode': False  # Add this flag for auto mode
         }
 
     # Create sidebar once
