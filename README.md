@@ -36,14 +36,39 @@ Run the app:
 bash
 streamlit run main.py
 Project Structure 🗂️
-FluffyAi/
-├── main.py                 # Entry point
-├── bots/                   # Bot definitions and logic
-├── pages/                  # Streamlit pages
-├── components/             # Reusable UI components
-├── config/                 # Configuration files
-├── utils/                  # Utility functions
-└── assets/                 # Images and static files
+fluffy_app/
+├── __init__.py
+├── main.py               # Entry point (contains the main() function)
+├── config.py             # Constants and configurations
+├── static/               # For CSS/images
+│   └── styles.css        # Moved CSS from Styles class
+├── models/               # Data models/schemas
+│   ├── __init__.py
+│   ├── bot.py           # Bot data structure
+│   └── profile.py       # Profile data structure
+├── controllers/          # Business logic
+│   ├── __init__.py
+│   ├── chat.py          # LLMChatController
+│   ├── bot_manager.py   # BotManager
+│   └── group_chat.py    # GroupChatManager
+├── services/            # Utility classes
+│   ├── __init__.py
+│   ├── utils.py         # Utils class
+│   └── navigation.py    # Navigation class
+├── views/               # UI/presentation layer
+│   ├── __init__.py
+│   ├── pages/           # Page components
+│   │   ├── home.py
+│   │   ├── profile.py
+│   │   ├── chat.py
+│   │   ├── bot_setup.py
+│   │   └── group_chat.py
+│   └── components/      # Reusable components
+│       ├── bot_card.py
+│       └── sidebar.py
+└── tests/               # Unit tests
+    ├── __init__.py
+    └── test_chat.py
 Requirements 📋
 Python 3.8+
 

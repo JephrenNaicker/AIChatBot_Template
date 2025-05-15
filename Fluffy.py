@@ -150,14 +150,6 @@ class Utils:
         return img
 
     @staticmethod
-    def get_audio_path(voice_name: str, emotion: str = None) -> str:
-        filename = f"{voice_name.lower()}"
-        if emotion:
-            filename += f"_{emotion.lower()}"
-        filename += ".wav"
-        return os.path.join(DEFAULT_BOT_DIR, filename)
-
-    @staticmethod
     def parse_generated_concept(response):
         """Parse LLM response into structured format with error handling"""
         try:
@@ -261,15 +253,15 @@ class Utils:
 
 
 # === CHATBOT CLASS ===
-class StoryChatBot:
+class LLMChatController:
     def __init__(self):
         self.llm = OllamaLLM(model="llama3:latest")
         self._init_session_state()
-        self._init_chains()
-        self._init_memory()
+        self._init_dialog_chain()
+        self._init_memory_buffer()
 
     @lru_cache(maxsize=100)
-    def _init_memory(self):
+    def _init_memory_buffer(self):
         """Initialize enhanced conversation memory"""
         if "memory" not in st.session_state:
             st.session_state.memory = ConversationBufferWindowMemory(
@@ -289,7 +281,7 @@ class StoryChatBot:
                 "llm_errors": 0
             }
 
-    def _init_chains(self):
+    def _init_dialog_chain(self):
         bot_name = st.session_state.get('selected_bot', '')
         current_bot = next((b for b in BOTS + st.session_state.user_bots if b["name"] == bot_name), None)
 
@@ -360,7 +352,7 @@ class StoryChatBot:
             st.error(f"Unexpected error: {str(e)}")
             return "🌌 Whoops! Something unexpected happened."
 
-    def generate_response(self, user_input: str) -> str:
+    def generate_single_response(self, user_input: str) -> str:
         """Generate response with memory support"""
         try:
             # Debug: Print memory state
@@ -389,7 +381,7 @@ class StoryChatBot:
             st.text(traceback.format_exc())  # Show full traceback
             return "❌ Sorry, I encountered an error. Please try again."
 
-    def generate_group_response(self, bot: dict, prompt: str, shared_history: str) -> str:
+    def generate_group_chat_response(self, bot: dict, prompt: str, shared_history: str) -> str:
         """Specialized response generator for group chats"""
         try:
             # Get this bot's personality memory
@@ -455,7 +447,7 @@ class StoryChatBot:
             # Safe fallback that doesn't depend on bot_name
             return "Hello! Let's chat!"
 
-    def create_icon_toolbar(self):
+    def display_chat_icon_toolbar(self):
         """Create a toolbar with chat action buttons at the bottom of the chat interface"""
         with st.container():
             # Create columns for the toolbar layout
@@ -499,7 +491,7 @@ class StoryChatBot:
                                     last_user_msg = chat_history[-2][1]  # Get last user message
 
                                     # Regenerate response
-                                    new_response = self.generate_response(last_user_msg)
+                                    new_response = self.generate_single_response(last_user_msg)
 
                                     # Replace last assistant message
                                     chat_history[-1] = ("assistant", new_response)
@@ -892,7 +884,7 @@ class PagesManager:
                            === END PROFILE ===
                            """
 
-                        response = StoryChatBot()._cached_llm_invoke(prompt, "Character generation")
+                        response = LLMChatController()._cached_llm_invoke(prompt, "Character generation")
                         st.session_state.generated_concept = Utils.parse_generated_concept(response)
                         st.rerun()
                     except Exception as e:
@@ -1201,198 +1193,13 @@ class PagesManager:
             st.rerun()
 
     @staticmethod
-    # def voice_page():
-    #     st.title("🎙️ Voice Selection")
-    #     # Initialize TTS with error handling
-    #     tts = None
-    #     tts_available = False
-    #
-    #     try:
-    #         # Try to initialize with a simpler model first
-    #         with st.spinner("Loading voice engine..."):
-    #             tts = TTS(model_name="tts_models/en/ljspeech/tacotron2-DDC", progress_bar=False)
-    #             tts_available = True
-    #     except Exception as e:
-    #         st.warning(f"⚠️ Could not initialize TTS: {str(e)}")
-    #         st.info("Voice previews will not be available, but you can still select voices.")
-    #
-    #     # Define the path to your audio file
-    #     STORYTELLER_AUDIO_PATH = "Audio/Storyteller_Audio.wav"  # Relative path from your script
-    #
-    #     # Voice options with emotional variants
-    #     VOICE_OPTIONS = {
-    #         "Friendly": {
-    #             "description": "Warm and approachable tone",
-    #             "sample": "Hey...I'm very shy",
-    #             "speaker_idx": 5,  # VITS speaker ID
-    #             "icon": "😊",
-    #             "color": "#4CAF50"
-    #         },
-    #         "Professional": {
-    #             "description": "Clear and articulate delivery",
-    #             "samples": {
-    #                 "default": "The quarterly report shows a 12% increase.",
-    #                 "serious": "<speak><prosody rate='slow' pitch='low'>This matter requires immediate attention.</prosody></speak>",
-    #                 "confident": "<speak><prosody rate='medium' pitch='medium'>I'm certain we can meet our targets.</prosody></speak>"
-    #             },
-    #             "speaker_idx": 10,
-    #             "icon": "💼",
-    #             "color": "#2196F3"
-    #         },
-    #         "Storyteller": {
-    #             "description": "Expressive and dramatic",
-    #             "samples": {
-    #                 "default": "Once upon a time, in a land far away...",
-    #                 "mysterious": "<speak><prosody rate='slow' pitch='low'>Something lurked in the shadows...</prosody></speak>",
-    #                 "excited": "<speak><prosody rate='fast' pitch='high'>And then the dragon appeared!</prosody></speak>"
-    #             },
-    #             "speaker_idx": 15,
-    #             "icon": "📖",
-    #             "color": "#9C27B0"
-    #         },
-    #         "Robotic": {
-    #             "description": "Futuristic digital voice",
-    #             "samples": {
-    #                 "default": "Beep boop. Systems operational.",
-    #                 "alert": "<speak><prosody rate='fast' pitch='high'>Warning! Warning!</prosody></speak>",
-    #                 "mechanical": "<speak><prosody rate='slow' pitch='low'>Processing.complete.</prosody></speak>"
-    #             },
-    #             "speaker_idx": 20,
-    #             "icon": "🤖",
-    #             "color": "#607D8B"
-    #         }
-    #     }
-    #
-    #     # CSS (same as before)
-    #     st.markdown("""
-    #         <style>
-    #             /* Your existing CSS styles */
-    #             .emotion-btn {
-    #                 margin: 0.2rem;
-    #                 padding: 0.3rem 0.5rem;
-    #                 font-size: 0.8rem;
-    #             }
-    #         </style>
-    #         """, unsafe_allow_html=True)
-    #
-    #     # CSS for voice cards (same as before)
-    #     st.markdown("""
-    #        <style>
-    #            .voice-card {
-    #                border: 1px solid #e0e0e0;
-    #                border-radius: 8px;
-    #                padding: 1rem;
-    #                margin-bottom: 1rem;
-    #                background: white;
-    #            }
-    #            .voice-header {
-    #                display: flex;
-    #                align-items: center;
-    #                gap: 10px;
-    #                margin-bottom: 0.5rem;
-    #            }
-    #            .voice-name {
-    #                font-weight: bold;
-    #                font-size: 1.1rem;
-    #                color: #333;
-    #            }
-    #            .voice-desc {
-    #                color: #555;
-    #                margin-bottom: 0.5rem;
-    #            }
-    #            .voice-preview {
-    #                margin-top: 0.5rem;
-    #                border-left: 3px solid #7B1FA2;
-    #                padding-left: 1rem;
-    #            }
-    #            audio {
-    #                width: 100%;
-    #                margin-top: 0.5rem;
-    #            }
-    #            .audio-container {
-    #                background: #f5f5f5;
-    #                padding: 1rem;
-    #                border-radius: 8px;
-    #                margin: 0.5rem 0;
-    #            }
-    #            .selected-badge {
-    #                color: #4CAF50;
-    #                font-weight: bold;
-    #                margin-left: auto;
-    #            }
-    #        </style>
-    #        """, unsafe_allow_html=True)
-    #
-    #     # Create audio directory if it doesn't exist
-    #     os.makedirs(DEFAULT_BOT_DIR, exist_ok=True)
-    #     selected_voice = st.session_state.get("selected_voice", "Friendly")
-    #
-    #     for voice_name, voice_data in VOICE_OPTIONS.items():
-    #         with st.container():
-    #             # Voice display
-    #             st.markdown(f"""
-    #                    <div style="color:{voice_data['color']}; font-size:1.2rem;">
-    #                        {voice_data['icon']} {voice_name}
-    #                    </div>
-    #                    <div style="color:#555; margin-bottom:0.5rem;">
-    #                        {voice_data['description']}
-    #                    </div>
-    #                """, unsafe_allow_html=True)
-    #
-    #             # Preview button
-    #             if st.button(
-    #                     "▶️ Preview",
-    #                     key=f"preview_{voice_name}",
-    #                     disabled=not tts_available,
-    #                     help="Preview voice (requires TTS)" if tts_available else "TTS not available"
-    #             ):
-    #                 try:
-    #                     audio_path = os.path.join(DEFAULT_BOT_DIR, f"{voice_name}.wav")
-    #
-    #                     # Generate the audio file
-    #                     with st.spinner("Generating voice preview..."):
-    #                         tts.tts_to_file(
-    #                             text=voice_data["sample"],
-    #                             file_path=audio_path
-    #                         )
-    #
-    #                     # Play the audio
-    #                     st.audio(audio_path, format='audio/wav')
-    #
-    #                 except Exception as e:
-    #                     st.error(f"Failed to generate preview: {str(e)}")
-    #                     st.error(f"Debug info - Model: {tts.model_name}, Sample: {voice_data['sample']}")
-    #
-    #             # Select button
-    #             if st.button(
-    #                     "✅ Select" if voice_name != selected_voice else "✓ Selected",
-    #                     key=f"select_{voice_name}",
-    #                     disabled=voice_name == selected_voice
-    #             ):
-    #                 st.session_state.selected_voice = voice_name
-    #                 st.toast(f"{voice_name} voice selected!", icon="🎙️")
-    #                 st.rerun()
-    #
-    #             st.divider()
-    #
-    #     # Troubleshooting section
-    #     with st.expander("ℹ️ Troubleshooting"):
-    #         st.write("If voice previews aren't working:")
-    #         st.write("1. Make sure you have a stable internet connection")
-    #         st.write("2. Models will download automatically on first use")
-    #         st.write("3. Try refreshing the page if previews fail")
-    #
-    #         if st.button("🔄 Retry TTS Initialization"):
-    #             st.rerun()
-    #
-    #     if st.button("🔙 Back"):
-    #         st.session_state.page = "home"
-    #         st.rerun()
+    def voice_page():
+        pass
 
     @staticmethod
     def chat_page(bot_name):
         """Chat page with the selected bot"""
-        bot = StoryChatBot()
+        bot = LLMChatController()
 
         # Get the bot's details from either BOTS or user_bots
         current_bot = next(
@@ -1428,7 +1235,7 @@ class PagesManager:
 
 
         # Add the icon toolbar at the bottom of the chat
-        bot.create_icon_toolbar()
+        bot.display_chat_icon_toolbar()
 
         # User input handling
         if prompt := st.chat_input("Type your message..."):
@@ -1998,7 +1805,6 @@ class Navigation:
 # === GROUP CHAT MANAGER ===
 class GroupChatManager:
     @staticmethod
-    @staticmethod
     def show_group_setup():
         """Enhanced group chat setup with search and pagination"""
         st.title("👥 Setup Group Chat")
@@ -2178,88 +1984,44 @@ class GroupChatManager:
 
     @staticmethod
     def show_active_group_chat():
-        """Display the active group chat with bot selection controls"""
+        """Display the active group chat without message echoing"""
         st.title("👥 Group Chat")
 
-        auto_mode = st.checkbox(
-            "🤖 Auto Mode (Bots talk to each other)",
-            value=st.session_state.group_chat.get('auto_mode', False),
-            key="auto_mode_toggle"
+        bots = st.session_state.group_chat['bots']
+
+        # Bot selector
+        responder_options = [f"{bot['emoji']} {bot['name']}" for bot in bots]
+        selected_bot = st.radio(
+            "Select which bot should respond next:",
+            responder_options,
+            index=st.session_state.group_chat.get('responder_idx', 0),
+            horizontal=True,
+            key="bot_selector"
         )
-        st.session_state.group_chat['auto_mode'] = auto_mode
-
-        if auto_mode:
-            if st.button("⏸️ Pause Auto Mode"):
-                st.session_state.group_chat['auto_mode'] = False
-                st.rerun()
-        else:
-            if st.button("▶️ Start Auto Mode"):
-                st.session_state.group_chat['auto_mode'] = True
-                st.rerun()
-
-        # --- Top Section: Bot Selector ---
-        with st.container():
-            bots = st.session_state.group_chat['bots']
-            num_cols = min(3, len(bots))
-            cols = st.columns(num_cols)
-
-            # Create a radio button to select which bot should respond next
-            responder_options = [f"{bot['emoji']} {bot['name']}" for bot in bots]
-            selected_bot = st.radio(
-                "Select which bot should respond next:",
-                responder_options,
-                index=st.session_state.group_chat.get('responder_idx', 0),
-                horizontal=True,
-                key="bot_selector"
-            )
-
-            # Update the responder index
-            st.session_state.group_chat['responder_idx'] = responder_options.index(selected_bot)
+        st.session_state.group_chat['responder_idx'] = responder_options.index(selected_bot)
 
         st.divider()
 
-        # --- Middle Section: Combined Chat History ---
-        displayed_messages = set()  # Track displayed messages to avoid duplicates
+        # Display messages from the shared history
+        shared_history = st.session_state.group_chat.get('shared_history', [])
+        for msg in shared_history:
+            role, content, bot_name = msg
+            avatar = next((b['emoji'] for b in bots if b['name'] == bot_name), None) if role == "assistant" else None
+            with st.chat_message(role, avatar=avatar):
+                if role == "assistant":
+                    st.markdown(f"**{bot_name}**: {content}")
+                else:
+                    st.markdown(content)
 
-        for bot in st.session_state.group_chat['bots']:
-            bot_name = bot['name']
-            history = st.session_state.group_chat['histories'][bot_name]
-
-            for role, message in history:
-                message_id = f"{role}_{message[:50]}"  # First 50 chars as ID
-
-                if message_id not in displayed_messages:
-                    displayed_messages.add(message_id)
-                    avatar = bot['emoji'] if role == "assistant" else None
-
-                    with st.chat_message(role, avatar=avatar):
-                        if role == "assistant":
-                            st.markdown(f"**{bot_name}**: {message}")
-                        else:
-                            st.markdown(message)
-
-        # --- Bottom Section: Input & Controls ---
-        input_col, action_col = st.columns([4, 1])
-
-        with input_col:
-            prompt = st.chat_input("Type your message...")
-
-        with action_col:
-            if st.button("🤖 Let Bot Respond", key="bot_response_btn"):
-                # Trigger a bot-to-bot response
-                GroupChatManager.generate_bot_to_bot_response()
-                st.rerun()
-
-        if prompt:
-            # Add user message to all bots' histories
-            for bot in st.session_state.group_chat['bots']:
-                bot_name = bot['name']
-                st.session_state.group_chat['histories'][bot_name].append(("user", prompt))
+        # User input
+        if prompt := st.chat_input("Type your message..."):
+            # Add user message to shared history once
+            st.session_state.group_chat.setdefault('shared_history', []).append(("user", prompt, None))
 
             # Generate response from selected bot
-            responder_bot = st.session_state.group_chat['bots'][st.session_state.group_chat['responder_idx']]
+            responder_bot = bots[st.session_state.group_chat['responder_idx']]
             with st.spinner(f"{responder_bot['name']} is thinking..."):
-                response = GroupChatManager.generate_bot_response(responder_bot, prompt)
+                GroupChatManager.generate_bot_response(responder_bot, prompt)
                 st.rerun()
 
         if st.button("❌ End Group Chat"):
@@ -2272,28 +2034,65 @@ class GroupChatManager:
         if not st.session_state.group_chat['bots']:
             return
 
-        # Get the last message in the conversation (from any bot)
-        last_message = None
+        # Get the last assistant message in the conversation
+        last_bot_message = None
         for bot in st.session_state.group_chat['bots']:
-            history = st.session_state.group_chat['histories'][bot['name']]
+            history = st.session_state.group_chat['histories'].get(bot['name'], [])
             if history and history[-1][0] == "assistant":
-                last_message = history[-1][1]
+                last_bot_message = history[-1][1]
                 break
 
-        if not last_message:
+        if not last_bot_message:
             return  # No messages to respond to
 
-        # Get the responding bot
         responder_bot = st.session_state.group_chat['bots'][st.session_state.group_chat['responder_idx']]
+        with st.spinner(f"{responder_bot['name']} is thinking..."):
+             GroupChatManager.generate_bot_response(responder_bot, last_bot_message)
+             st.rerun()
+
+    @staticmethod
+    def generate_bot_response(bot, prompt):
+        """Generate response without message echoing"""
+        bot_name = bot['name']
+
+        # Initialize shared history if not exists
+        if 'shared_history' not in st.session_state.group_chat:
+            st.session_state.group_chat['shared_history'] = []
+
+        # Initialize personality memory if not exists
+        if 'personality_memories' not in st.session_state.group_chat:
+            st.session_state.group_chat['personality_memories'] = {}
+        if bot_name not in st.session_state.group_chat['personality_memories']:
+            st.session_state.group_chat['personality_memories'][bot_name] = ConversationBufferWindowMemory(
+                k=30,
+                return_messages=True,
+                memory_key="chat_history"
+            )
+
+        # Get recent context from shared history
+        context = "\n".join(
+            f"{'User' if role == 'user' else bot}: {content}"
+            for role, content, bot in st.session_state.group_chat['shared_history'][-10:]
+        )
 
         # Generate response
-        with st.spinner(f"{responder_bot['name']} is thinking..."):
-            response = GroupChatManager.generate_bot_response(responder_bot, last_message)
+        chatbot = LLMChatController()
+        response = chatbot.generate_group_chat_response(bot, f"Conversation Context:\n{context}\n\nNew Message: {prompt}",
+                                                   "")
 
-            # Add the response to all bots' histories
-            for bot in st.session_state.group_chat['bots']:
-                bot_name = bot['name']
-                st.session_state.group_chat['histories'][bot_name].append(("assistant", response))
+        # Clean response
+        response = response.strip()
+        if response.startswith(f"{bot_name}:"):
+            response = response[len(bot_name) + 1:].strip()
+
+        # Update memories
+        st.session_state.group_chat['personality_memories'][bot_name].save_context(
+            {"input": prompt},
+            {"output": response}
+        )
+
+        # Add bot response to shared history
+        st.session_state.group_chat['shared_history'].append(("assistant", response, bot_name))
 
     @staticmethod
     def handle_group_chat_response(prompt):
@@ -2323,38 +2122,6 @@ class GroupChatManager:
         """Clean up group chat session"""
         st.session_state.group_chat['active'] = False
         st.rerun()
-
-
-    @staticmethod
-    def generate_bot_response(bot, prompt):
-        """Generate response for group chat using specialized group method"""
-        bot_name = bot['name']
-
-        # Get memories
-        personality_memory = st.session_state.group_chat['personality_memories'][bot_name]
-        shared_memory = st.session_state.group_chat['shared_memory']
-
-        # Format shared history
-        shared_history = "\n".join(
-            f"{msg.type.capitalize()}: {msg.content}"
-            for msg in shared_memory.load_memory_variables({}).get("chat_history", [])
-            if hasattr(msg, 'type') and hasattr(msg, 'content')
-        )
-
-        # Create chatbot instance
-        chatbot = StoryChatBot()
-
-        # Generate response using the group-specific method
-        response = chatbot.generate_group_response(bot, prompt, shared_history)
-
-        # Update both memories
-        personality_memory.save_context({"input": prompt}, {"output": response})
-        shared_memory.save_context({"input": prompt}, {"output": response})
-
-        # Add to this bot's history
-        st.session_state.group_chat['histories'][bot_name].append(("assistant", response))
-
-        return response
 
 class Styles:
     """Centralized CSS styles for the entire application"""
