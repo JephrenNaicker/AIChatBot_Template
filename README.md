@@ -48,13 +48,13 @@ fluffy_app/
 │   └── profile.py       # Profile data structure
 ├── controllers/          # Business logic
 │   ├── __init__.py
-│   ├── chat.py          # LLMChatController
-│   ├── bot_manager.py   # BotManager
-│   └── group_chat.py    # GroupChatManager
+│   ├── chat_controller.py          
+│   ├── bot_manager_controller.py  
+│   ├── group_chat_controller.py 
+│   └── voice_controller.py
 ├── services/            # Utility classes
 │   ├── __init__.py
 │   ├── utils.py         # Utils class
-│   └── navigation.py    # Navigation class
 ├── views/               # UI/presentation layer
 │   ├── __init__.py
 │   ├── pages/           # Page components
@@ -62,9 +62,16 @@ fluffy_app/
 │   │   ├── profile.py
 │   │   ├── chat.py
 │   │   ├── bot_setup.py
+│   │   ├── create_bot.py
+│   │   ├── edit_bot.py
+│   │   ├── generate_concept.py
+│   │   ├── my_bots.py
+│   │   ├── profile.py
+│   │   ├── voice.py
 │   │   └── group_chat.py
 │   └── components/      # Reusable components
 │       ├── bot_card.py
+│       ├── audio_player.py
 │       └── sidebar.py
 └── tests/               # Unit tests
     ├── __init__.py
