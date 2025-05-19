@@ -1,8 +1,3 @@
-# AIChatBot_Template
-AI Chat-Bot Template
-
-
-pip install -r requirements.txt
 
 # FluffyAI - Interactive Chatbot Platform
 
@@ -73,9 +68,7 @@ fluffy_app/
 │       ├── bot_card.py
 │       ├── audio_player.py
 │       └── sidebar.py
-└── tests/               # Unit tests
-    ├── __init__.py
-    └── test_chat.py
+└── tests/               # Uni
 Requirements 📋
 Python 3.8+
 
