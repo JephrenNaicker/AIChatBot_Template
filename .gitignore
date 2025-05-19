@@ -173,17 +173,17 @@ cython_debug/
 # PyPI configuration file
 .pypirc
 
-# Ignore everything in this directory
-/*
+# # Ignore everything in this directory
+# /*
 
-# Except your specific .py file
-!Fluffy.py
-!Add requirements.txt
-!.gitignore
-!requirements.txt
-!Fluffy.py
-!README.md
+# # Except your specific .py file
+# !Fluffy.py
+# !Add requirements.txt
+# !.gitignore
+# !requirements.txt
+# !Fluffy.py
+# !README.md
 
-# Allow folders and their contents if needed
-!/.streamlit/
-!/.github/
+# # Allow folders and their contents if needed
+# !/.streamlit/
+# !/.github/

@@ -1,7 +1,0 @@
-streamlit
-Pillow
-langchain
-langchain-core
-langchain_ollama
-TTS
-pyperclip
