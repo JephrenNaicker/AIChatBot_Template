@@ -59,7 +59,7 @@ def chat_page(bot_name):
                                 audio_path = st.session_state.voice_service.generate_speech(
                                     message,
                                     emotion,
-                                    dialogue_only=False
+                                    dialogue_only=True #
                                 )
                                 if audio_path:
                                     # Display the audio player

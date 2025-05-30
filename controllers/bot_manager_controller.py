@@ -265,7 +265,7 @@ class BotManager:
         )
 
         # ===== Advanced Options =====
-        with st.expander("⚙️ Voice Options"):
+        with st.expander("🗣️ Voice Options"):
             # Voice options section
             if hasattr(st.session_state, 'voice_service') and st.session_state.voice_service is not None:
                 # Use a checkbox that's more visible than toggle
