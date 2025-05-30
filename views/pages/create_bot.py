@@ -12,15 +12,13 @@ def create_bot_page():
     # Show preset options
     BotManager._display_preset_options()
 
-    # Main creation form
-    with st.form(key="main_bot_form"):
-        form_data = BotManager._display_creation_form()
-        submitted = st.form_submit_button("✨ Create Character")
+   # Main creation form - remove the nested form structure
+    form_data = BotManager._display_creation_form()
 
-        if submitted:
-            BotManager._handle_form_submission(form_data)
+    if st.button("✨ Create Character", key="create_bot_button"):
+        BotManager._handle_form_submission(form_data)
 
-    # Tag addition form (outside main form)
+    # Tag addition form
     with st.form(key="tag_addition_form"):
         st.subheader("Add Custom Tag")
         new_tag_col, add_col = st.columns([4, 1])
@@ -40,7 +38,7 @@ def create_bot_page():
                     st.session_state.custom_tags.append(new_custom_tag)
                     st.rerun()
 
-    # Cancel button (outside both forms)
+    # Cancel button
     if st.button("❌ Cancel"):
         if 'preset_data' in st.session_state:
             del st.session_state.preset_data

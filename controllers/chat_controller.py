@@ -6,7 +6,7 @@ from langchain.prompts import PromptTemplate
 from langchain.schema.runnable import RunnableSequence
 from langchain_core.exceptions import OutputParserException, LangChainException
 from langchain_community.llms import Ollama
-from config import BOTS
+from config import BOTS,DEFAULT_RULES
 
 class LLMChatController:
     def __init__(self):
@@ -42,10 +42,12 @@ class LLMChatController:
 
         if current_bot:
             personality = current_bot.get("personality", {})
-
+            system_rules = current_bot.get("system_rules", {})
             # Unified template that works for both single and group chats
             prompt_template = f"""You are {bot_name} ({current_bot['emoji']}), {current_bot['desc']}.
-
+                
+                [CHARACTER DIRECTIVES]
+                {system_rules}
     			[Your Personality Rules]
     			- Always respond as {bot_name}
     			- Traits: {', '.join(personality.get('traits', []))}

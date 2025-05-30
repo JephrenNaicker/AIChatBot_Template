@@ -5,6 +5,7 @@ from langchain.memory import ConversationBufferWindowMemory
 from controllers.chat_controller import LLMChatController
 from controllers.bot_manager_controller import BotManager
 from controllers.group_chat_controller import GroupChatManager
+from controllers.voice_controller import VoiceService
 
 # Import services
 from components.sidebar import create_sidebar
@@ -43,6 +44,25 @@ def initialize_session_state():
         st.session_state.selected_bot = None
     if 'greeting_sent' not in st.session_state:
         st.session_state.greeting_sent = False
+
+    if 'voice_service' not in st.session_state:
+        try:
+            st.session_state.voice_service = VoiceService()
+            st.session_state.voice_available = True
+            print("VoiceService initialized successfully!")
+            print("Available emotions:", st.session_state.voice_service.get_available_emotions())
+        except Exception as e:
+            print(f"VoiceService initialization failed: {e}")
+            st.session_state.voice_service = None
+            st.session_state.voice_available = False
+    # Voice service initialization with lazy loading pattern
+    # if 'voice_service' not in st.session_state:
+    #     st.session_state.voice_service = None
+    #     st.session_state.voice_available = False
+    #     st.session_state.voice_initializing = False
+    #     st.session_state.voice_init_error = None
+
+
     if 'group_chat' not in st.session_state:
         st.session_state.group_chat = {
             'active': False,
@@ -54,7 +74,6 @@ def initialize_session_state():
             'auto_mode': False,
             'last_interaction': None  # Added for tracking
         }
-    # Initialize other required session state variables
     if 'user_bots' not in st.session_state:
         st.session_state.user_bots = []
     if 'chat_histories' not in st.session_state:

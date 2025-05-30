@@ -1,5 +1,5 @@
 import streamlit as st
-from config import TAG_OPTIONS, PERSONALITY_TRAITS
+from config import TAG_OPTIONS, PERSONALITY_TRAITS,DEFAULT_RULES
 
 class BotManager:
     @staticmethod
@@ -89,13 +89,58 @@ class BotManager:
             st.toast("This feature will generate an AI image based on your description!", icon="🎨")
 
     @staticmethod
+    def _display_voice_options():
+        """Display voice/emotion selection options"""
+        voice_data = {"enabled": False}  # Default return value
+
+        # Check if voice service is available
+        if not hasattr(st.session_state, 'voice_service') or st.session_state.voice_service is None:
+            return voice_data
+
+        voice_service = st.session_state.voice_service
+
+        # Simple toggle and dropdown
+        enable_voice = st.toggle(
+            "Enable Voice for this bot",
+            value=False,
+            help="Add voice synthesis to your bot",
+            key="voice_toggle"
+        )
+
+        if enable_voice:
+            try:
+                emotions = voice_service.get_available_emotions()
+                if not emotions:
+                    st.warning("No voice emotions available")
+                    return voice_data
+
+                emotion = st.selectbox(
+                    "Voice Emotion",
+                    options=emotions,
+                    index=emotions.index('neutral') if 'neutral' in emotions else 0,
+                    help="Select the emotional tone for your bot's voice",
+                    key="voice_emotion"
+                )
+
+                voice_data = {
+                    "enabled": True,
+                    "emotion": emotion
+                }
+            except Exception as e:
+                st.error(f"Error loading voice options: {str(e)}")
+                return {"enabled": False}
+
+        return voice_data
+
+    @staticmethod
     def _display_creation_form():
         """Display the main bot creation form and return collected data"""
         form_data = {
             "basic": {},
             "appearance": {},
             "personality": {},
-            "tags": []
+            "tags": [],
+            "voice": {"enabled": False, "emotion": None}  # Initialize with proper structure
         }
 
         # Get default values from preset if available
@@ -166,6 +211,36 @@ class BotManager:
             help="Select traits that define your character's personality"
         )
 
+        # ===== Thought Process & Rules Section =====
+
+        st.subheader("🧠 Thought Process & Rules")
+
+        with st.expander("⚙️ Configure Behavior Rules", expanded=False):
+            # Help text with examples
+            st.markdown("""
+            **Format Guide:**
+            - `(Thoughts appear in italics format)`
+            - `"Spoken dialogue in quotes"`
+            """)
+
+            # Editable rules area with smart default
+            rules = st.text_area(
+                "Custom Behavior Rules",
+                value=DEFAULT_RULES,
+                height=200,
+                help="Define how your character thinks and responds",
+                key="bot_rules"
+            )
+
+            # Live preview
+            st.caption("Example Behavior:")
+            st.code(f"""User: Hello!
+        Bot: *Noticing the friendly tone* "Well hello there!" 
+        """, language="markdown")
+
+        # Store in form data
+        form_data["system_rules"] = rules
+
         # ===== First Introduction Message =====
         st.subheader("👋 First Introduction")
         form_data["personality"]["greeting"] = st.text_area(
@@ -190,10 +265,41 @@ class BotManager:
         )
 
         # ===== Advanced Options =====
-        with st.expander("⚙️ Advanced Options (Coming Soon)"):
-            st.write("Future features:")
-            st.selectbox("Voice Style", ["Default", "Friendly", "Professional"], disabled=True)
-            st.multiselect("Emotional Range", ["Happy", "Sad", "Angry", "Excited"], disabled=True)
+        with st.expander("⚙️ Voice Options"):
+            # Voice options section
+            if hasattr(st.session_state, 'voice_service') and st.session_state.voice_service is not None:
+                # Use a checkbox that's more visible than toggle
+                voice_enabled = st.checkbox(
+                    "Enable Voice for this Character",
+                    value=False,
+                    help="Add voice synthesis to your character",
+                    key="voice_enable_checkbox"
+                )
+                form_data["voice"]["enabled"] = voice_enabled
+
+                if voice_enabled:
+                    try:
+                        emotions = st.session_state.voice_service.get_available_emotions()
+                        if emotions:
+                            # Add visual feedback about the selected emotion
+                            selected_emotion = st.selectbox(
+                                "Select Voice Emotion",
+                                options=emotions,
+                                index=emotions.index('neutral') if 'neutral' in emotions else 0,
+                                help="Select the emotional tone for your character's voice",
+                                key="voice_emotion_select"
+                            )
+                            form_data["voice"]["emotion"] = selected_emotion
+                            st.success(f"Voice will use: {selected_emotion.capitalize()} tone")
+                        else:
+                            st.warning("No voice emotions available")
+                            form_data["voice"]["enabled"] = False
+                    except Exception as e:
+                        st.error(f"Error loading voice options: {str(e)}")
+                        form_data["voice"]["enabled"] = False
+            else:
+                st.info("Voice features are currently unavailable")
+                form_data["voice"]["enabled"] = False
 
         st.subheader("🔄 Status")
         status = st.radio(
@@ -212,8 +318,6 @@ class BotManager:
         """Handle form submission and bot creation"""
         if not form_data["basic"]["name"]:
             st.error("Please give your bot a name")
- ##       elif len(form_data["basic"]["emoji"]) <2:
- ##           st.error("Emoji should be 1-2 characters max")
         else:
             new_bot = {
                 "name": form_data["basic"]["name"],
@@ -226,13 +330,33 @@ class BotManager:
                     "traits": form_data["personality"]["traits"],
                     "greeting": form_data["personality"]["greeting"]
                 },
+                "system_rules": form_data["system_rules"] or DEFAULT_RULES,
                 "appearance": {
                     "description": form_data["appearance"]["description"],
                 },
                 "custom": True,
-                "creator": st.session_state.profile_data.get("username", "anonymous")  # Track creator
+                "creator": st.session_state.profile_data.get("username", "anonymous")
             }
 
+            # Handle voice options - with debug output
+            if form_data.get("voice", {}).get("enabled", False):
+                new_bot["voice"] = {
+                    "enabled": True,  # Explicitly set enabled
+                    "emotion": form_data["voice"]["emotion"]
+                }
+                # Add voice tag if not already present
+                if "voice" not in new_bot["tags"]:
+                    new_bot["tags"].append("voice")
+                st.toast(f"Voice enabled with {form_data['voice']['emotion']} emotion!", icon="🔊")
+            else:
+                # Ensure voice is disabled if not enabled
+                new_bot["voice"] = {"enabled": False}
+                # Remove voice tag if present
+                new_bot["tags"] = [tag for tag in new_bot["tags"] if tag != "voice"]
+                st.toast("Voice not enabled for this character", icon="🔇")
+
+            # Debug output
+            st.write("Final bot voice settings:", new_bot.get("voice", "NO VOICE SETTINGS"))
             # Handle uploaded file if exists
             if form_data["appearance"].get("uploaded_file"):
                 new_bot["appearance"]["avatar"] = BotManager._handle_uploaded_file(

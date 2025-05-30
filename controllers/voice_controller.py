@@ -1,3 +1,4 @@
+import re
 import sys
 import traceback
 import torch
@@ -5,6 +6,7 @@ import torchaudio
 from pathlib import Path
 from typing import Dict, Tuple
 import datetime
+import streamlit as st
 
 # Configuration
 CONFIG = {
@@ -37,6 +39,32 @@ class VoiceService:
         self.emotion_refs = self._load_emotion_refs()
         self._ensure_output_dir()
         self.tts = True  # Add this line to indicate TTS is available
+
+    def ensure_voice_service(self):
+        """Ensure voice service is initialized (lazy loading)"""
+        if st.session_state.voice_service is None and not st.session_state.voice_initializing:
+            try:
+                st.session_state.voice_initializing = True
+                st.session_state.voice_init_error = None
+
+                # Show loading state if in a page that needs voice
+                if st.session_state.page in ["voice", "chat"]:
+                    with st.spinner("Initializing voice service..."):
+                        st.session_state.voice_service = VoiceService()
+                        st.session_state.voice_available = True
+                else:
+                    # Initialize silently for other pages
+                    st.session_state.voice_service = VoiceService()
+                    st.session_state.voice_available = True
+
+            except Exception as e:
+                st.session_state.voice_init_error = str(e)
+                st.session_state.voice_available = False
+                print(f"VoiceService initialization failed: {e}")
+            finally:
+                st.session_state.voice_initializing = False
+
+        return st.session_state.voice_service
 
     @property
     def config(self):
@@ -110,11 +138,43 @@ class VoiceService:
 
     def get_available_emotions(self):
         """Return list of available emotions"""
-        return list(self.emotion_refs.keys())
+        try:
+            emotions = list(self.emotion_refs.keys())
+            return emotions
+        except Exception as e:
+            print(f"Error getting available emotions: {e}")
+            return []
 
-    def generate_speech(self, text: str, emotion: str) -> str:
+    def extract_dialogue(self, text: str) -> str:
+        """
+        Extract only the dialogue portions from text (content within quotation marks)
+        Returns empty string if no dialogue found.
+        """
+        # Find all text between quotes (including nested quotes)
+        dialogues = re.findall(r'"(.*?)"', text)
+
+        # Join with pauses between dialogue segments
+        processed = " ... ... ".join(dialogues)
+
+        # If no dialogue found, return empty string
+        return processed if processed.strip() else ""
+
+    def generate_speech(self, text: str, emotion:str, dialogue_only: bool = True) -> str:
         """Generate speech from text with the selected emotion"""
         try:
+            # Pre-process text if we only want dialogue
+            if dialogue_only:
+                processed_text = self.extract_dialogue(text)
+                if not processed_text:
+                    print("[INFO] No dialogue found in text - nothing to synthesize")
+                    return None
+                print(f"[DEBUG] Extracted dialogue: {processed_text}")
+            else:
+                processed_text = text
+
+            print(f"\nGenerating speech from: {processed_text}")
+
+
             print(f"\n[DEBUG] Starting speech generation with emotion: {emotion}")
 
             # 1. Get reference audio
@@ -130,7 +190,7 @@ class VoiceService:
             # 3. Prepare conditioning
             print("[DEBUG] Preparing conditioning...")
             cond_dict = make_cond_dict(
-                text=text,
+                text=processed_text,
                 speaker=speaker,
                 language="en-us"
             )
@@ -213,7 +273,7 @@ if __name__ == "__main__":
 
         # Example usage:
         emotions = tts.get_available_emotions()
-        print("Available emotions:", emotions)
+        #print("Available emotions:", emotions)
 
         # Generate speech with the first available emotion
         if emotions:

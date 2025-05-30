@@ -1,7 +1,7 @@
 import streamlit as st
 import os
 from pathlib import Path
-
+from datetime import datetime
 
 def audio_player(audio_path: str, autoplay: bool = False, downloadable: bool = True, key: str = None):
     """
@@ -13,41 +13,64 @@ def audio_player(audio_path: str, autoplay: bool = False, downloadable: bool = T
         downloadable (bool): Show download button
         key (str): Unique key for Streamlit components
     """
-    if not audio_path or not os.path.exists(audio_path):
-        st.warning("Audio file not found")
-        return
+    try:
+        # Validate input path
+        if not audio_path or not isinstance(audio_path, (str, Path)):
+            st.warning("Invalid audio path")
+            return
 
-    with st.container(border=True):
-        col1, col2 = st.columns([4, 1])
+        # Convert to Path object and verify existence
+        audio_file = Path(audio_path)
+        if not audio_file.exists():
+            st.warning(f"Audio file not found at: {str(audio_file)}")
+            return
 
-        with col1:
-            # Main audio player
-            st.audio(audio_path, format="audio/wav", autoplay=autoplay)
+        with st.container(border=True):
+            col1, col2 = st.columns([4, 1])
 
-            # Audio info
-            audio_file = Path(audio_path)
-            st.caption(f"""
-                File: {audio_file.name}  
-                Size: {audio_file.stat().st_size / 1024:.1f} KB  
-                Modified: {audio_file.stat().st_mtime:%Y-%m-%d %H:%M}
-            """)
+            with col1:
+                # Main audio player with explicit string conversion
+                st.audio(str(audio_file), format="audio/wav", autoplay=autoplay)
 
-        with col2:
-            # Download button
-            if downloadable:
-                with open(audio_path, "rb") as f:
-                    st.download_button(
-                        label="⬇️",
-                        data=f,
-                        file_name=audio_file.name,
-                        mime="audio/wav",
-                        key=f"download_{key}" if key else None
-                    )
-
-            # Delete button
-            if st.button("🗑️", key=f"delete_{key}" if key else None):
+                # Safely generate file info
                 try:
-                    os.remove(audio_path)
-                    st.rerun()
+                    file_size = audio_file.stat().st_size / 1024  # KB
+                    mod_time = datetime.fromtimestamp(audio_file.stat().st_mtime)
+                    file_info = f"""
+                        File: {audio_file.name}  
+                        Size: {file_size:.1f} KB  
+                        Modified: {mod_time.strftime('%Y-%m-%d %H:%M')}
+                    """
                 except Exception as e:
-                    st.error(f"Couldn't delete file: {e}")
+                    file_info = f"File: {audio_file.name}"
+                    st.warning(f"Couldn't read file metadata: {e}")
+
+                st.caption(file_info)
+
+            with col2:
+                # Download button
+                if downloadable:
+                    try:
+                        with open(audio_file, "rb") as f:
+                            st.download_button(
+                                label="⬇️",
+                                data=f,
+                                file_name=audio_file.name,
+                                mime="audio/wav",
+                                key=f"download_{key}" if key else None
+                            )
+                    except Exception as e:
+                        st.error(f"Download failed: {e}")
+
+                # Delete button
+                if st.button("🗑️", key=f"delete_{key}" if key else None):
+                    try:
+                        audio_file.unlink()
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Couldn't delete file: {e}")
+
+    except Exception as e:
+        st.error(f"Audio player error: {e}")
+        # Fallback to basic player if everything else fails
+        st.audio(str(audio_path))

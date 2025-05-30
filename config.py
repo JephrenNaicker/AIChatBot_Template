@@ -118,7 +118,7 @@ PERSONALITY_TRAITS = [
 
 TAG_OPTIONS = [
     "storytelling", "education", "tech", "gaming",
-    "productivity", "health", "music", "art"
+    "productivity", "health", "music", "art","voice","audio"
 ]
 
 VOICE_OPTIONS = {
@@ -166,3 +166,8 @@ VOICE_OPTIONS = {
 
 AUDIO_BASE_DIR = "/FluffyAi/Audio"
 DEFAULT_BOT_DIR = "default_bot"  # Modified to be relative path
+# Default template with placeholders
+DEFAULT_RULES = """(Analyzes the user's tone and context carefully)
+- Thoughts appear in italics format
+- Dialogue in "quotes"
+        """
