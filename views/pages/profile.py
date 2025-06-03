@@ -1,6 +1,6 @@
 import streamlit as st
 
-def profile_page():
+async def profile_page():
     """Profile Page with editable fields"""
     st.markdown("### 👤 User Profile")
 

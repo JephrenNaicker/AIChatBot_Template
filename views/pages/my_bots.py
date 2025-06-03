@@ -1,7 +1,7 @@
 import streamlit as st
 from controllers.bot_manager_controller import BotManager
 
-def my_bots_page():
+async def my_bots_page():
     """Main entry point for the My Bots page"""
     st.title("🌟 My Custom Bots")
 

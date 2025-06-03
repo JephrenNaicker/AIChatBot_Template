@@ -2,14 +2,10 @@ import streamlit as st
 from langchain.memory import ConversationBufferWindowMemory
 
 # Import controllers
-from controllers.chat_controller import LLMChatController
-from controllers.bot_manager_controller import BotManager
-from controllers.group_chat_controller import GroupChatManager
 from controllers.voice_controller import VoiceService
 
 # Import services
 from components.sidebar import create_sidebar
-from services.utils import Utils
 
 # Import views (pages)
 from views.pages.home import home_page
@@ -55,13 +51,6 @@ def initialize_session_state():
             print(f"VoiceService initialization failed: {e}")
             st.session_state.voice_service = None
             st.session_state.voice_available = False
-    # Voice service initialization with lazy loading pattern
-    # if 'voice_service' not in st.session_state:
-    #     st.session_state.voice_service = None
-    #     st.session_state.voice_available = False
-    #     st.session_state.voice_initializing = False
-    #     st.session_state.voice_init_error = None
-
 
     if 'group_chat' not in st.session_state:
         st.session_state.group_chat = {
@@ -114,39 +103,40 @@ def apply_global_styles():
     """, unsafe_allow_html=True)
 
 
-def main():
+async def main():
     # Initialize application
     initialize_session_state()
     apply_global_styles()
 
     # Create sidebar navigation
-    create_sidebar()
+    await create_sidebar()
 
     # Page routing
     if st.session_state.page == "home":
-        home_page()
+        await home_page()
     elif st.session_state.page == "profile":
-        profile_page()
+        await profile_page()
     elif st.session_state.page == "chat":
-        chat_page(st.session_state.selected_bot)
+        await chat_page(st.session_state.selected_bot)
     elif st.session_state.page == "bot_setup":
-        bot_setup_page()
+        await bot_setup_page()
     elif st.session_state.page == "generate_concept":
-        generate_concept_page()
+        await generate_concept_page()
     elif st.session_state.page == "create_bot":
-        create_bot_page()
+        await create_bot_page()
     elif st.session_state.page == "my_bots":
-        my_bots_page()
+        await my_bots_page()
     elif st.session_state.page == "edit_bot":
-        edit_bot_page()
+        await edit_bot_page()
     elif st.session_state.page == "voice":
-        voice_page()
+        await voice_page()
     elif st.session_state.page == "group_chat":
-        group_chat_page()
+        await group_chat_page()
     else:
         st.warning("Please select a page")
-        home_page()
+        await home_page()
 
 
 if __name__ == "__main__":
-    main()
+    import asyncio
+    asyncio.run(main())

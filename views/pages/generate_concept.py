@@ -3,7 +3,7 @@ from config import PERSONALITY_TRAITS
 from controllers.chat_controller import LLMChatController
 from services.utils import Utils
 
-def generate_concept_page():
+async def generate_concept_page():
 
     st.title("🪄 Generate Character Concept")
 
@@ -63,7 +63,7 @@ def generate_concept_page():
                           - Speech Pattern: Uses old English phrases
                           - Quirks: Often speaks in rhymes, disappears in smoke when leaving
                           System Rules: thoughts appear in italics format and Dialogue in "quotes"
-                          Sample Greeting: *This traveler seems trustworthy, but I should test their intentions first*. "Ah, traveler! What brings you to my humble abode on this fine day?" 
+                          Sample Greeting: *This traveler seems trustworthy, but I should test their intentions first.* "Ah, traveler! What brings you to my humble abode on this fine day?" 
                           Tags: fantasy, magic, mentor
                           === END PROFILE ===
                           """
