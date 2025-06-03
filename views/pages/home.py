@@ -2,7 +2,7 @@ import streamlit as st
 from config import BOTS, PAGES
 from components.bot_card import bot_card
 
-def home_page():
+async def home_page():
     """Home page with title/search in centered container and full-width grid"""
     st.title("🤖 Chat Bot Gallery")
     search_query = st.text_input("🔍 Search bots...",

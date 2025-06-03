@@ -3,20 +3,20 @@ from config import TAG_OPTIONS
 from controllers.bot_manager_controller import BotManager
 
 
-def create_bot_page():
+async def create_bot_page():
     st.title("🤖 Create Your Own Chat Bot")
 
     # Initialize session state variables
     BotManager._init_bot_creation_session()
 
     # Show preset options
-    BotManager._display_preset_options()
+    await BotManager._display_preset_options()
 
    # Main creation form - remove the nested form structure
-    form_data = BotManager._display_creation_form()
+    form_data =  await BotManager._display_creation_form()
 
     if st.button("✨ Create Character", key="create_bot_button"):
-        BotManager._handle_form_submission(form_data)
+        await BotManager._handle_form_submission(form_data)
 
     # Tag addition form
     with st.form(key="tag_addition_form"):

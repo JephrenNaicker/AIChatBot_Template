@@ -5,7 +5,7 @@ from config import BOTS
 
 class GroupChatManager:
     @staticmethod
-    def show_group_setup():
+    async def show_group_setup():
         """Enhanced group chat setup with search and pagination"""
         st.title("👥 Setup Group Chat")
 
@@ -183,7 +183,7 @@ class GroupChatManager:
                 st.rerun()
 
     @staticmethod
-    def show_active_group_chat():
+    async def show_active_group_chat():
         """Display the active group chat without message echoing"""
         st.title("👥 Group Chat")
 
@@ -229,7 +229,7 @@ class GroupChatManager:
             st.rerun()
 
     @staticmethod
-    def generate_bot_to_bot_response():
+    async def generate_bot_to_bot_response():
         """Generate a response from the selected bot to continue the conversation"""
         if not st.session_state.group_chat['bots']:
             return
@@ -251,7 +251,7 @@ class GroupChatManager:
              st.rerun()
 
     @staticmethod
-    def generate_bot_response(bot, prompt):
+    async def generate_bot_response(bot, prompt):
         """Generate response without message echoing"""
         bot_name = bot['name']
 
@@ -295,7 +295,7 @@ class GroupChatManager:
         st.session_state.group_chat['shared_history'].append(("assistant", response, bot_name))
 
     @staticmethod
-    def handle_group_chat_response(prompt):
+    async def handle_group_chat_response(prompt):
         """Handle user message and generate bot response"""
         # Add user message to history
         st.session_state.group_chat['history'].append(("user", prompt, None))
@@ -318,7 +318,7 @@ class GroupChatManager:
         st.rerun()
 
     @staticmethod
-    def end_group_chat():
+    async def end_group_chat():
         """Clean up group chat session"""
         st.session_state.group_chat['active'] = False
         st.rerun()

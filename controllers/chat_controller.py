@@ -25,7 +25,8 @@ class LLMChatController:
                 memory_key="chat_history"
             )
 
-    def _init_session_state(self):
+    @staticmethod
+    def _init_session_state():
         if "chat_history" not in st.session_state:
             st.session_state.chat_history = []
         if "greeting_sent" not in st.session_state:
@@ -76,7 +77,8 @@ class LLMChatController:
                 ) | self.llm
             )
 
-    def _process_memory(self, user_input: str, response: str):
+    @staticmethod
+    def _process_memory(user_input: str, response: str):
         """Update conversation memory"""
         try:
             st.session_state.memory.save_context(
@@ -109,36 +111,40 @@ class LLMChatController:
             st.error(f"Unexpected error: {str(e)}")
             return "🌌 Whoops! Something unexpected happened."
 
-    def generate_single_response(self, user_input: str) -> str:
+    async def generate_single_response(self, user_input: str) -> str:
         """Generate response with memory support"""
         try:
-            # Debug: Print memory state
-            print("Memory state:", st.session_state.memory)
+            # Get current chat history
+            chat_history = st.session_state.chat_histories.get(st.session_state.selected_bot, [])
+
+            # If this is the first exchange after greeting, ensure greeting is properly stored
+            if len(chat_history) == 2:  # [Greeting, User message]
+                greeting = chat_history[0][1]
+                self._process_memory(
+                    "(Conversation started)",
+                    f"{st.session_state.selected_bot}: {greeting}"
+                )
 
             # Get conversation history from memory
             history = st.session_state.memory.load_memory_variables({})
-            print("Loaded history:", history)
 
-            # Prepare inputs
+            # Prepare inputs using both memory and current chat history
             chain_inputs = {
                 "user_input": user_input,
-                "chat_history": history.get("chat_history", []),
+                "chat_history": history.get("chat_history", [])
             }
 
-            # Use the dialog chain with memory context
             response = self.dialog_chain.invoke(chain_inputs)
-
-            # Update memory
             self._process_memory(user_input, response)
             return response
 
         except Exception as e:
             import traceback
             st.error(f"Response generation failed: {str(e)}")
-            st.text(traceback.format_exc())  # Show full traceback
+            st.text(traceback.format_exc())
             return "❌ Sorry, I encountered an error. Please try again."
 
-    def generate_group_chat_response(self, bot: dict, prompt: str, shared_history: str) -> str:
+    async def generate_group_chat_response(self, bot: dict, prompt: str, shared_history: str) -> str:
         """Specialized response generator for group chats"""
         try:
             # Get this bot's personality memory
@@ -181,7 +187,7 @@ class LLMChatController:
             st.error(f"Group response generation failed: {str(e)}")
             return f"❌ {bot['name']} encountered an error. Please try again."
 
-    def generate_greeting(self):
+    async def generate_greeting(self):
         try:
             bot_name = st.session_state.get('selected_bot', 'StoryBot')
             current_bot = next((b for b in BOTS + st.session_state.user_bots if b["name"] == bot_name), None)
@@ -204,7 +210,7 @@ class LLMChatController:
             # Safe fallback that doesn't depend on bot_name
             return "Hello! Let's chat!"
 
-    def display_chat_icon_toolbar(self):
+    async def display_chat_icon_toolbar(self):
         """Create a toolbar with chat action buttons at the bottom of the chat interface"""
         with st.container():
             # Create columns for the toolbar layout
@@ -245,16 +251,22 @@ class LLMChatController:
                         if not disabled:
                             try:
                                 with st.spinner("Re-generating response..."):
-                                    last_user_msg = chat_history[-2][1]  # Get last user message
+                                    # 1. Remove the last bot response from history
+                                    last_exchange = chat_history.pop()
+                                    last_user_msg = chat_history[-1][1]  # Get last user message
 
-                                    # Regenerate response
-                                    new_response = self.generate_single_response(last_user_msg)
+                                    # 2. Clear the memory of the last exchange
+                                    self.clear_last_exchange()
 
-                                    # Replace last assistant message
-                                    chat_history[-1] = ("assistant", new_response)
+                                    # 3. Generate fresh response
+                                    new_response = await self.generate_single_response(last_user_msg)
+
+                                    # 4. Update history
+                                    chat_history.append(("assistant", new_response))
                                     st.rerun()
                             except Exception as e:
                                 st.error(f"Failed to regenerate: {str(e)}")
+                                st.rerun()  # Ensure UI updates even on error
 
                 with action_cols[3]:
                     if st.button(
@@ -331,3 +343,9 @@ class LLMChatController:
                             use_container_width=True
                     ):
                         st.toast("Bot switching coming soon!", icon="🔄")
+
+    def clear_last_exchange(self):
+        """Remove the last Q&A pair from memory"""
+        if hasattr(self, 'memory') and self.memory.chat_memory.messages:
+            self.memory.chat_memory.messages.pop()  # Bot response
+            self.memory.chat_memory.messages.pop()  # User question

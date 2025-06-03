@@ -3,7 +3,7 @@ from config import TAG_OPTIONS, PERSONALITY_TRAITS,DEFAULT_RULES
 
 class BotManager:
     @staticmethod
-    def _handle_uploaded_file(uploaded_file, bot_name):
+    async def _handle_uploaded_file(uploaded_file, bot_name):
         """Handle avatar file upload"""
         # In a real app, you would save this file and return the path
         return {
@@ -13,7 +13,7 @@ class BotManager:
         }
 
     @staticmethod
-    def _update_bot_status(bot_name, new_status):
+    async def _update_bot_status(bot_name, new_status):
         """Update a bot's status in the user_bots list"""
         for i, b in enumerate(st.session_state.user_bots):
             if b["name"] == bot_name:
@@ -23,7 +23,7 @@ class BotManager:
                 st.rerun()
 
     @staticmethod
-    def _delete_bot(bot_name):
+    async def _delete_bot(bot_name):
         """Delete a bot from the user_bots list"""
         st.session_state.user_bots = [
             b for b in st.session_state.user_bots if b["name"] != bot_name
@@ -46,7 +46,7 @@ class BotManager:
             st.toast("Generated concept loaded!", icon="✨")
 
     @staticmethod
-    def _display_preset_options():
+    async def _display_preset_options():
         """Display preset options at the top of the page"""
         BOT_PRESETS = {
             "Dating Sim": {
@@ -89,7 +89,7 @@ class BotManager:
             st.toast("This feature will generate an AI image based on your description!", icon="🎨")
 
     @staticmethod
-    def _display_voice_options():
+    async def _display_voice_options():
         """Display voice/emotion selection options"""
         voice_data = {"enabled": False}  # Default return value
 
@@ -133,7 +133,7 @@ class BotManager:
         return voice_data
 
     @staticmethod
-    def _display_creation_form():
+    async def _display_creation_form():
         """Display the main bot creation form and return collected data"""
         form_data = {
             "basic": {},
@@ -314,7 +314,7 @@ class BotManager:
         return form_data
 
     @staticmethod
-    def _handle_form_submission(form_data):
+    async def _handle_form_submission(form_data):
         """Handle form submission and bot creation"""
         if not form_data["basic"]["name"]:
             st.error("Please give your bot a name")

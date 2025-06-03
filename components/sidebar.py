@@ -2,7 +2,7 @@ import streamlit as st
 from config import PAGES
 
 
-def create_sidebar():
+async def create_sidebar():
     """Reusable sidebar component with navigation and chat history"""
     with st.sidebar:
         st.header("📚 StoryBot")
@@ -32,10 +32,10 @@ def create_sidebar():
             st.rerun()
 
         st.divider()
-        _display_chat_list()
+        await _display_chat_list()
 
 
-def _display_chat_list():
+async def _display_chat_list():
     """Private method to display chat history list"""
     st.subheader("Your Chats")
 

@@ -2,10 +2,9 @@ import streamlit as st
 from controllers.voice_controller import VoiceService
 from components.audio_player import audio_player
 from datetime import datetime
-import asyncio
 
 
-def handle_voice_generation(voice_service, text, emotion):
+async def handle_voice_generation(voice_service, text, emotion):
     """Handle the voice generation process with proper error handling"""
     try:
         timestamp = datetime.now().strftime("%H%M%S")
@@ -26,7 +25,7 @@ def handle_voice_generation(voice_service, text, emotion):
         return False
 
 
-def voice_page():
+async def voice_page():
     st.title("🎙️ Voice Studio")
 
     # Initialize voice service with error handling
@@ -70,7 +69,7 @@ def voice_page():
                     st.warning("Please enter some text")
                 else:
                     # Handle the generation in a separate function
-                    handle_voice_generation(voice_service, preview_text, emotion)
+                    await handle_voice_generation(voice_service, preview_text, emotion)
 
         # Display the last generated preview
         if "last_preview" in st.session_state:

@@ -1,6 +1,6 @@
 import streamlit as st
 
-def bot_setup_page():
+async def bot_setup_page():
     st.title("🧙 Character Creation")
     st.write("Choose your creation method:")
 

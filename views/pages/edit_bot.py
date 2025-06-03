@@ -3,7 +3,7 @@ from config import TAG_OPTIONS, PERSONALITY_TRAITS, DEFAULT_RULES
 from controllers.bot_manager_controller import BotManager
 
 
-def edit_bot_page():
+async def edit_bot_page():
     if 'editing_bot' not in st.session_state:
         st.error("No bot selected for editing")
         st.session_state.page = "my_bots"
