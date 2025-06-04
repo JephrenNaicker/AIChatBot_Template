@@ -66,11 +66,6 @@ class VoiceService:
 
         return st.session_state.voice_service
 
-    @property
-    def config(self):
-        """Get the configuration dictionary"""
-        return CONFIG
-
     def _setup_imports(self):
         """Handle imports with fallback paths"""
         try:
