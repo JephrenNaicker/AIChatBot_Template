@@ -48,7 +48,7 @@ async def display_chat_toolbar(controller: LLMChatController = None):
                         try:
                             with st.spinner("Re-generating response..."):
                                 # 1. Remove the last bot response from history
-                                last_exchange = chat_history.pop()
+                                chat_history.pop()  # We don't need to store this in a variable
                                 last_user_msg = chat_history[-1][1]  # Get last user message
 
                                 # 2. Clear the memory of the last exchange

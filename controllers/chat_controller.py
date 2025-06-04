@@ -2,7 +2,7 @@ import hashlib
 import streamlit as st
 from functools import lru_cache
 
-from langchain.memory import ChatMessageHistory
+from langchain_community.chat_message_histories import ChatMessageHistory
 from langchain_core.messages import HumanMessage
 
 from langchain.prompts import PromptTemplate
