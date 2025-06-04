@@ -1,5 +1,5 @@
 import streamlit as st
-from langchain.memory import ConversationBufferWindowMemory
+from langchain.memory import ChatMessageHistory
 
 # Import controllers
 from controllers.voice_controller import VoiceService
@@ -19,17 +19,12 @@ from views.pages.edit_bot import edit_bot_page
 from views.pages.voice import voice_page
 from views.pages.group_chat import group_chat_page
 
-# Import config
-from config import PAGES
-
-
 def initialize_chat_memory():
     """Initialize and return a properly configured conversation memory"""
-    memory = ConversationBufferWindowMemory(
-        k=20,
-        return_messages=True
-    )
-    return memory
+    return {
+        'chat_history': ChatMessageHistory(),
+        'window_size': 20  # Keep last 20 messages
+    }
 
 
 def initialize_session_state():
@@ -40,6 +35,8 @@ def initialize_session_state():
         st.session_state.selected_bot = None
     if 'greeting_sent' not in st.session_state:
         st.session_state.greeting_sent = False
+    if 'memory' not in st.session_state:
+        st.session_state.memory = initialize_chat_memory()
 
     if 'voice_service' not in st.session_state:
         try:

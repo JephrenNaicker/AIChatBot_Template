@@ -1,6 +1,7 @@
 import streamlit as st
 from controllers.chat_controller import LLMChatController
 from components.audio_player import audio_player
+from components.chat_toolbar import display_chat_toolbar
 
 
 async def chat_page(bot_name):
@@ -80,7 +81,7 @@ async def chat_page(bot_name):
         st.rerun()
 
     # Add the icon toolbar at the bottom of the chat
-    await bot.display_chat_icon_toolbar()
+    await display_chat_toolbar(bot)
 
     # User input handling
     if prompt := st.chat_input("Type your message..."):
