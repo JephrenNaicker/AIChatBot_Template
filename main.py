@@ -1,5 +1,5 @@
 import streamlit as st
-from langchain.memory import ChatMessageHistory
+from langchain_community.chat_message_histories import ChatMessageHistory
 
 # Import controllers
 from controllers.voice_controller import VoiceService
