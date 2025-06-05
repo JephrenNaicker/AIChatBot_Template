@@ -1,5 +1,5 @@
 import streamlit as st
-from config import BOTS, PAGES
+from config import BOTS
 from components.bot_card import bot_card
 
 async def home_page():

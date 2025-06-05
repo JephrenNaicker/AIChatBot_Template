@@ -53,21 +53,22 @@ fluffy_app/
 ├── views/               # UI/presentation layer
 │   ├── __init__.py
 │   ├── pages/           # Page components
-│   │   ├── home.py
-│   │   ├── profile.py
-│   │   ├── chat.py
-│   │   ├── bot_setup.py
-│   │   ├── create_bot.py
-│   │   ├── edit_bot.py
-│   │   ├── generate_concept.py
-│   │   ├── my_bots.py
-│   │   ├── profile.py
-│   │   ├── voice.py
-│   │   └── group_chat.py
-│   └── components/      # Reusable components
-│       ├── bot_card.py
-│       ├── audio_player.py
-│       └── sidebar.py
+│   ├── home.py
+│   ├── profile.py
+│   ├── chat.py
+│   ├── bot_setup.py
+│   ├── create_bot.py
+│   ├── edit_bot.py
+│   ├── generate_concept.py
+│   ├── my_bots.py
+│   ├── profile.py
+│   ├── voice.py
+│   └── group_chat.py
+├── components/      # Reusable components
+│   ├── bot_card.py
+│   ├── audio_player.py
+│   ├── sidebar.py
+│   └── chat_toolbar.py
 └── tests/               # Uni
 Requirements 📋
 Python 3.8+
