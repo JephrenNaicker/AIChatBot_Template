@@ -7,6 +7,10 @@ from pathlib import Path
 from typing import Dict, Tuple
 import datetime
 import streamlit as st
+import threading
+from queue import Queue
+import os
+os.environ["TORCHDYNAMO_DISABLE"] = "1"
 
 # Configuration
 CONFIG = {
@@ -33,12 +37,66 @@ CONFIG = {
 class VoiceService:
     def __init__(self, model_type="transformer"):
         """Initialize the TTS system"""
-        self._setup_imports()
-        self.device = self._get_device()
-        self.model = self._load_model(model_type)
-        self.emotion_refs = self._load_emotion_refs()
-        self._ensure_output_dir()
-        self.tts = True  # Add this line to indicate TTS is available
+        self._model_type = model_type  # Store the model type
+        self._initializing = False
+        self._ready = False
+        self._error = None
+        self._init_queue = Queue()  # Initialize the queue
+        self.config = CONFIG
+        self.device = None
+        self.model = None
+        self.emotion_refs = None
+        self.tts = False
+
+        # Start initialization
+        self._start_async_init()
+
+    def _start_async_init(self):
+        """Start asynchronous initialization"""
+        if not self._initializing and not self._ready:
+            self._initializing = True
+            thread = threading.Thread(target=self._async_init, daemon=True)
+            thread.start()
+
+    def _async_init(self):
+        """Actual initialization in background thread"""
+        try:
+            self._setup_imports()
+            self.device = self._get_device()
+            self.model = self._load_model(self._model_type)
+            self.emotion_refs = self._load_emotion_refs()
+            self._ensure_output_dir()
+            self.tts = True
+            self._ready = True
+            print("VoiceService initialized successfully!")
+            print("Available emotions:", list(self.emotion_refs.keys()))
+        except Exception as e:
+            self._error = str(e)
+            print(f"VoiceService initialization failed: {e}")
+        finally:
+            self._initializing = False
+            self._init_queue.put(self._ready)  # Signal completion with status
+            st.rerun()  # Add this line to trigger Streamlit refresh
+
+    def is_initializing(self):
+        """Check if service is initializing"""
+        return self._initializing
+
+    def is_ready(self):
+        """Check if service is ready to use"""
+        return self._ready
+
+    def get_error(self):
+        """Get initialization error if any"""
+        return self._error
+    
+    def wait_for_init(self, timeout=30):
+        """Wait for initialization to complete (for sync operations)"""
+        try:
+            self._init_queue.get(timeout=timeout)
+            return self._ready
+        except:
+            return False
 
     def ensure_voice_service(self):
         """Ensure voice service is initialized (lazy loading)"""
