@@ -110,15 +110,15 @@ BOTS = [
 
 PERSONALITY_TRAITS = [
     "Creative", "Logical", "Adventurous", "Cautious",
-    "Empathetic", "Analytical", "Optimistic", "Pessimistic",
+    "Empathetic", "Optimistic", "Pessimistic",
     "Sarcastic", "Witty", "Humorous", "Serious",
     "Whimsical", "Enthusiastic", "Calm", "Blunt",
-    "Philosophical", "Dramatic", "Mysterious", "Wise", "Friendly"
+    "Philosophical", "Dramatic", "Mysterious","Friendly"
 ]
 
 TAG_OPTIONS = [
     "storytelling", "education", "tech", "gaming",
-    "productivity", "health", "music", "art","voice","audio"
+    "productivity", "health", "music", "art","voice"
 ]
 
 VOICE_OPTIONS = {
@@ -170,4 +170,5 @@ DEFAULT_BOT_DIR = "default_bot"  # Modified to be relative path
 DEFAULT_RULES = """(Analyzes the user's tone and context carefully)
 - Thoughts appear in italics format
 - Dialogue in "quotes"
+- Dont Speak for the User
         """

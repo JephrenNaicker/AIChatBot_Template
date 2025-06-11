@@ -1,4 +1,3 @@
-import hashlib
 import streamlit as st
 from functools import lru_cache
 
@@ -209,11 +208,14 @@ class LLMChatController:
 
             if current_bot:
                 prompt = f"""
-                    As {bot_name}, create a friendly 1-sentence greeting that:
+                    As {bot_name}, create a friendly 4-5 sentence greeting that:
                     - Uses your emoji {current_bot['emoji']}
                     - Mentions your name
                     - Reflects your personality: {current_bot['personality'].get('tone', 'neutral')}
                     - Includes one of your quirks: {', '.join(current_bot['personality'].get('quirks', []))}
+                    - Thoughts appear in italics format
+                    - Dialogue in "quotes"
+                    Only return the output,response 
                     """
                 return self._cached_llm_invoke(prompt, current_bot["desc"])
 
@@ -224,6 +226,59 @@ class LLMChatController:
             st.toast(f"Greeting generation failed: {str(e)}", icon="⚠️")
             # Safe fallback that doesn't depend on bot_name
             return "Hello! Let's chat!"
+
+    async def enhance_text(self, current_text: str, field_name: str, context: dict = None) -> str:
+        """Enhanced version with context support that returns ONLY the enhanced text"""
+        if not current_text.strip() and not context:
+            return current_text
+
+        if field_name == "character greeting" and context:
+            prompt = f"""Create an engaging greeting message for {context['name']} that:
+            - Matches their personality: {context['personality']}
+            - Reflects their background: {context['background']}
+            - Optionally references their appearance: {context['appearance']}
+            - Is 4-5 sentences maximum
+            - Sounds in-character
+            - Thoughts appear in italics format
+            - Dialogue in "quotes"
+            
+            IMPORTANT: Return ONLY the enhanced greeting text itself with no additional commentary.
+            Do NOT include any introductory text like "Here is the enhanced version".
+            
+            Current greeting (improve upon this):
+            {context['current_greeting']}
+            
+            Enhanced greeting:"""
+        else:
+            prompt = f"""Improve and enhance this {field_name} text:
+            {current_text}
+
+            Rules:
+            - Make it more engaging and detailed
+            - Maintain the original intent
+            - Return ONLY the enhanced text with no additional commentary
+            - Do NOT say "Enhanced version" or similar
+            - Is 5-8 sentences maximum
+
+            Enhanced text:"""
+
+        return await self._async_llm_invoke(prompt, "Text enhancement")
+
+    # Add this new async method for async calls
+    async def _async_llm_invoke(self, prompt: str, context: str) -> str:
+        """Async version of LLM invocation"""
+        try:
+            combined_input = f"{context}\n\n{prompt}"
+            if not prompt.strip():
+                raise ValueError("Empty prompt provided")
+
+            # Use async invoke if available
+            response = await self.llm.ainvoke(combined_input)
+            return response.strip()
+
+        except Exception as e:
+            st.error(f"Enhancement failed: {str(e)}")
+            return context  # Return original text if enhancement fails
 
     def clear_last_exchange(self):
         """Remove the last Q&A pair from memory"""
