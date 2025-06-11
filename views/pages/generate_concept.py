@@ -51,7 +51,7 @@ async def generate_concept_page():
                           {f"Appearance Hint: {appearance_hint}" if appearance_hint else ""}
                           {f"Special Ability: {special_ability}" if special_ability else ""}
                           
-                          Format your response EXACTLY like this example:
+                          Format your response EXACTLY like this example,(Do not use the 🤖 emoji):
                           
                           === CHARACTER PROFILE ===
                           Name: Merlin
