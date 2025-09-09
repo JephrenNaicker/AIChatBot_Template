@@ -1,16 +1,38 @@
 import streamlit as st
+import os
 from config import TAG_OPTIONS, PERSONALITY_TRAITS,DEFAULT_RULES
+from PIL import Image
+from components.bot_card import bot_card, get_bot_card_css
+
 
 class BotManager:
+
+    @staticmethod
+    def _fix_coroutine_avatars():
+        """Fix any bots that have coroutines stored as avatars"""
+        for bot in st.session_state.user_bots:
+            avatar_data = bot.get("appearance", {}).get("avatar")
+            if hasattr(avatar_data, '__await__'):
+                # This is a coroutine - replace with None
+                bot["appearance"]["avatar"] = None
+                # Make sure the bot has an emoji
+                if "emoji" not in bot or not bot["emoji"]:
+                    bot["emoji"] = "🤖"
+
+
     @staticmethod
     async def _handle_uploaded_file(uploaded_file, bot_name):
-        """Handle avatar file upload"""
-        # In a real app, you would save this file and return the path
-        return {
-            "filename": uploaded_file.name,
-            "content_type": uploaded_file.type,
-            "size": uploaded_file.size
-        }
+        """Handle avatar file upload using ImageService"""
+        if not uploaded_file or not hasattr(st.session_state, 'image_service'):
+            return None
+
+        try:
+            # Use the image service to handle the upload
+            file_info = st.session_state.image_service.save_uploaded_file(uploaded_file, bot_name)
+            return file_info
+        except Exception as e:
+            st.error(f"Error handling uploaded file: {str(e)}")
+            return None
 
     @staticmethod
     async def _update_bot_status(bot_name, new_status):
@@ -172,23 +194,46 @@ class BotManager:
         )
 
         # Avatar selection
+        # Avatar selection - UPDATED with proper image handling
         st.write("**Avatar:**")
         avatar_option = st.radio(
             "Avatar Type",
             ["Emoji", "Upload Image"],
             index=0,
-            horizontal=True
+            horizontal=True,
+            key="avatar_option"
         )
-        if avatar_option == "Upload Image":
-            form_data["appearance"]["uploaded_file"] = st.file_uploader(
-                "Upload Avatar Image",
-                type=["png", "jpg", "jpeg"]
-            )
-            if form_data["appearance"]["uploaded_file"]:
-                st.image(form_data["appearance"]["uploaded_file"], width=100)
-        else:
-            st.write(f"Preview: {form_data['basic']['emoji']}")
 
+        form_data["appearance"]["avatar_type"] = avatar_option
+
+        if avatar_option == "Upload Image":
+            uploaded_file = st.file_uploader(
+                "Upload Avatar Image",
+                type=["png", "jpg", "jpeg"],
+                key="avatar_upload",
+                help="Max 5MB - PNG, JPG, or JPEG"
+            )
+
+            if uploaded_file:
+                form_data["appearance"]["uploaded_file"] = uploaded_file
+
+                # Validate image before showing preview
+                if hasattr(st.session_state, 'image_service'):
+                    if st.session_state.image_service.is_valid_image(uploaded_file):
+                        # Show preview
+                        try:
+                            image = Image.open(uploaded_file)
+                            st.image(image, width=100, caption="Uploaded Avatar Preview")
+                        except Exception as e:
+                            st.error("Could not display image preview")
+                else:
+                    st.warning("Image service not available")
+            else:
+                form_data["appearance"]["uploaded_file"] = None
+        else:
+            # Emoji selected
+            form_data["appearance"]["uploaded_file"] = None
+            st.write(f"Preview: {form_data['basic']['emoji']}")
         # ===== Back Story Section =====
         st.subheader("📖 Character Background")
         form_data["basic"]["desc"] = st.text_area(
@@ -333,12 +378,36 @@ class BotManager:
                 "system_rules": form_data["system_rules"] or DEFAULT_RULES,
                 "appearance": {
                     "description": form_data["appearance"]["description"],
+                    "avatar_type": form_data["appearance"].get("avatar_type", "Emoji")
                 },
                 "custom": True,
                 "creator": st.session_state.profile_data.get("username", "anonymous")
             }
 
-            # Handle voice options - with debug output
+            # Handle avatar based on selection - PROPERLY AWAIT THE COROUTINE
+            if (form_data["appearance"].get("avatar_type") == "Upload Image" and
+                    form_data["appearance"].get("uploaded_file")):
+
+                # Use the image service to handle the upload - AWAIT the coroutine
+                uploaded_file = form_data["appearance"]["uploaded_file"]
+                file_info = await BotManager._handle_uploaded_file(uploaded_file, form_data["basic"]["name"])
+
+                if file_info:
+                    new_bot["appearance"]["avatar"] = file_info  # Store the actual file info, not coroutine
+                    # Use the uploaded image, not the emoji
+                    new_bot["emoji"] = None
+                    st.toast(f"Avatar image saved successfully!", icon="✅")
+                else:
+                    # Fall back to emoji if image upload fails
+                    new_bot["appearance"]["avatar"] = None
+                    new_bot["emoji"] = form_data["basic"]["emoji"]
+                    st.toast("Failed to save avatar image, using emoji instead", icon="⚠️")
+            else:
+                # Use emoji as avatar
+                new_bot["appearance"]["avatar"] = None
+                new_bot["emoji"] = form_data["basic"]["emoji"]
+
+            # Handle voice options
             if form_data.get("voice", {}).get("enabled", False):
                 new_bot["voice"] = {
                     "enabled": True,  # Explicitly set enabled
@@ -354,15 +423,6 @@ class BotManager:
                 # Remove voice tag if present
                 new_bot["tags"] = [tag for tag in new_bot["tags"] if tag != "voice"]
                 st.toast("Voice not enabled for this character", icon="🔇")
-
-            # Debug output
-            st.write("Final bot voice settings:", new_bot.get("voice", "NO VOICE SETTINGS"))
-            # Handle uploaded file if exists
-            if form_data["appearance"].get("uploaded_file"):
-                new_bot["appearance"]["avatar"] = BotManager._handle_uploaded_file(
-                    form_data["appearance"]["uploaded_file"],
-                    form_data["basic"]["name"]
-                )
 
             st.session_state.user_bots.append(new_bot)
             st.success(f"Character '{new_bot['name']}' created successfully!")
@@ -400,201 +460,59 @@ class BotManager:
         ]
 
     @staticmethod
+    @staticmethod
     def _display_bots_grid(bots):
-        """Display bots in a responsive grid layout"""
+        """Display bots in a responsive grid layout using the bot_card component"""
         cols = st.columns(2)
 
         for i, bot in enumerate(bots):
             with cols[i % 2]:
-                BotManager._display_bot_card(bot, i)
+                # Use the portrait variant of the bot card
+                bot_card(bot, show_actions=False, key_suffix=str(i), variant="portrait")
+
+                # Additional actions specific to my_bots page
+                action_cols = st.columns([1, 1, 1])
+                with action_cols[0]:
+                    if st.button("💬", key=f"chat_{bot['name']}_{i}", help="Chat", use_container_width=True):
+                        st.session_state.selected_bot = bot["name"]
+                        st.session_state.page = "chat"
+                        st.rerun()
+
+                with action_cols[1]:
+                    if st.button("✏️", key=f"edit_{bot['name']}_{i}", help="Edit", use_container_width=True):
+                        st.session_state.editing_bot = bot
+                        st.session_state.page = "edit_bot"
+                        st.rerun()
+
+                with action_cols[2]:
+                    if bot.get('status', 'draft') == 'draft':
+                        if st.button("🚀", key=f"publish_{bot['name']}_{i}", help="Publish", use_container_width=True):
+                            BotManager._update_bot_status(bot["name"], "published")
+                    else:
+                        if st.button("📦", key=f"unpublish_{bot['name']}_{i}", help="Unpublish",
+                                     use_container_width=True):
+                            BotManager._update_bot_status(bot["name"], "draft")
+
+                # Delete button in a separate row
+                if st.button("🗑️ Delete", key=f"delete_{bot['name']}_{i}", use_container_width=True):
+                    BotManager._delete_bot(bot["name"])
 
     @staticmethod
-    def _display_bot_card(bot, index):
-        """Display a bot card with perfect button layout"""
-        with st.container():
-            unique_key_suffix = f"{bot['name']}_{index}"
-
-            # Main card container with custom styling
-            with st.container(border=True):
-                st.markdown(f"""
-                <style>
-                    .bot-card {{
-                        padding: 1.5rem;
-                        min-height: 280px;
-                        width: 100%;
-                        display: flex;
-                        flex-direction: column;
-                    }}
-                    .bot-header {{
-                        display: flex;
-                        align-items: center;
-                        gap: 1rem;
-                        margin-bottom: 1rem;
-                    }}
-                    .bot-emoji {{
-                        font-size: 2.5rem;
-                        flex-shrink: 0;
-                    }}
-                    .bot-name {{
-                        font-size: 1.3rem;
-                        font-weight: bold;
-                    }}
-                    .bot-desc {{
-                        color: #666;
-                        font-size: 0.95rem;
-                        line-height: 1.4;
-                        margin-bottom: 1rem;
-                    }}
-                    .tags-container {{
-                        display: flex;
-                        flex-wrap: wrap;
-                        gap: 0.5rem;
-                        margin-bottom: 1.5rem;
-                    }}
-                    .bot-tag {{
-                        background: #2a3b4d;
-                        color: #7fbbde;
-                        padding: 0.3rem 0.8rem;
-                        border-radius: 1rem;
-                        font-size: 0.85rem;
-                        white-space: nowrap;
-                        overflow: hidden;
-                        text-overflow: ellipsis;
-                        max-width: 100px;
-                    }}
-                    /* New button row styling */
-                    .btn-row {{
-                        display: flex;
-                        gap: 0.8rem;
-                        margin-top: auto;
-                    }}
-                    .btn-row button {{
-                        min-width: 80px;
-                        padding: 0.4rem 0.8rem;
-                        font-size: 0.9rem;
-                    }}
-                    .btn-popover {{
-                        margin-left: auto;
-                    }}
-                </style>
-                <div class="bot-card">
-                    <div class="bot-header">
-                        <div class="bot-emoji">{bot['emoji']}</div>
-                        <div>
-                            <div class="bot-name">{bot['name']}</div>
-                            <div style="color: {'#f39c12' if bot.get('status', 'draft') == 'draft' else '#2ecc71'}; 
-                                          font-weight: bold; font-size: 0.85rem;">
-                                {bot.get('status', 'draft').upper()}
-                            </div>
-                        </div>
-                    </div>
-                    <div class="bot-desc">{bot['desc']}</div>
-                """, unsafe_allow_html=True)
-
-                # Tags (using your preferred style)
-                if bot.get('tags'):
-                    st.markdown('<div class="tags-container">', unsafe_allow_html=True)
-                    for tag in bot['tags']:
-                        st.markdown(f'<div class="bot-tag" title="{tag}">{tag}</div>',
-                                    unsafe_allow_html=True)
-                    st.markdown('</div>', unsafe_allow_html=True)
-
-                # New improved button row
-                st.markdown('<div class="btn-row">', unsafe_allow_html=True)
-
-                # Edit Button
-                if st.button("✏️ Edit", key=f"edit_{unique_key_suffix}"):
-                    st.session_state.editing_bot = bot
-                    st.session_state.page = "edit_bot"
-                    st.rerun()
-
-                # Chat Button
-                if st.button("💬 Chat", key=f"chat_{unique_key_suffix}"):
-                    st.session_state.selected_bot = bot["name"]
-                    st.session_state.page = "chat"
-                    st.rerun()
-
-                # Publish/Unpublish Button
-                if bot.get('status', 'draft') == 'draft':
-                    if st.button("🚀 Publish", key=f"publish_{unique_key_suffix}"):
-                        BotManager._update_bot_status(bot["name"], "published")
-                else:
-                    if st.button("📦 Unpub", key=f"unpublish_{unique_key_suffix}"):
-                        BotManager._update_bot_status(bot["name"], "draft")
-
-                # Gear icon positioned at the end
-                st.markdown('<div class="btn-popover">', unsafe_allow_html=True)
-                with st.popover("⚙️"):
-                    if st.button("🗑️ Delete", key=f"delete_{unique_key_suffix}"):
-                        BotManager._delete_bot(bot["name"])
-                st.markdown('</div>', unsafe_allow_html=True)
-
-                st.markdown('</div>', unsafe_allow_html=True)  # Close btn-row
-                st.markdown('</div>', unsafe_allow_html=True)  # Close bot-card
+    def fix_coroutine_avatars():
+        """Public method to fix coroutine avatars"""
+        BotManager._fix_coroutine_avatars()
 
     @staticmethod
-    def _display_status_badge(bot):
-        """Display the status badge for a bot"""
-        status = bot.get("status", "draft")
-        status_color = "orange" if status == "draft" else "green"
-        st.markdown(
-            f"<div style='text-align: right; margin-bottom: -20px;'>"
-            f"<span style='color: {status_color}; font-weight: bold;'>"
-            f"{status.upper()}</span></div>",
-            unsafe_allow_html=True
-        )
+    def show_empty_state():
+        """Public method to show empty state"""
+        BotManager._show_empty_state()
 
     @staticmethod
-    def _display_bot_header(bot):
-        """Display the bot's emoji and name"""
-        col1, col2, col3 = st.columns([1, 4, 1])
-        with col2:
-            st.markdown(f"<div style='text-align: center; font-size: 2rem;'>{bot['emoji']}</div>",
-                        unsafe_allow_html=True)
-            st.markdown(f"<h3 style='text-align: center;'>{bot['name']}</h3>",
-                        unsafe_allow_html=True)
+    def filter_bots_by_status():
+        """Public method to filter bots by status"""
+        return BotManager._filter_bots_by_status()
 
     @staticmethod
-    def _display_bot_description(bot):
-        """Display the bot's description"""
-        st.caption(bot['desc'])
-
-    @staticmethod
-    def _display_bot_tags(bot):
-        """Display the bot's tags if they exist"""
-        if bot.get('tags'):
-            for tag in bot['tags']:
-                st.markdown(f'<div class="bot-tag" title="{tag}">{tag}</div>',
-                            unsafe_allow_html=True)
-
-    @staticmethod
-    def _display_bot_actions(bot, unique_key_suffix):
-        """Display action buttons for a bot"""
-        status = bot.get("status", "draft")
-
-        # Main action buttons
-        st.markdown('<div class="main-actions">', unsafe_allow_html=True)
-
-        if st.button(f"✏️ Edit", key=f"edit_{unique_key_suffix}"):
-            st.session_state.editing_bot = bot
-            st.session_state.page = "edit_bot"
-            st.rerun()
-
-        if st.button(f"💬 Chat", key=f"chat_{unique_key_suffix}", type="secondary"):
-            st.session_state.selected_bot = bot["name"]
-            st.session_state.page = "chat"
-            st.rerun()
-
-        if status == "draft":
-            if st.button("🚀 Publish", key=f"publish_{unique_key_suffix}"):
-                BotManager._update_bot_status(bot["name"], "published")
-        else:
-            if st.button("📦 Unpublish", key=f"unpublish_{unique_key_suffix}"):
-                BotManager._update_bot_status(bot["name"], "draft")
-
-        st.markdown('</div>', unsafe_allow_html=True)
-
-        # More options dropdown
-        with st.popover("⚙️", help="More options"):
-            if st.button("🗑️ Delete Bot", key=f"delete_{unique_key_suffix}"):
-                BotManager._delete_bot(bot["name"])
+    def display_bots_grid(bots):
+        """Public method to display bots grid"""
+        BotManager._display_bots_grid(bots)

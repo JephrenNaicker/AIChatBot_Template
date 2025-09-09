@@ -49,6 +49,7 @@ fluffy_app/
 │   └── voice_controller.py
 ├── services/            # Utility classes
 │   ├── __init__.py
+│   ├── Image_Service.py #avatar Image Upload
 │   ├── utils.py         # Utils class
 ├── views/               # UI/presentation layer
 │   ├── __init__.py
@@ -113,3 +114,6 @@ streamlit
 ollama
 TTS
 Pillow
+
+add the pause at the end done
+have an Avter in the background chat, add manybe have about 4 emotial image that can switch.
