@@ -39,22 +39,42 @@ async def create_bot_page():
         )
 
     # Avatar selection - moved up near the top
-    st.subheader("🖼️ Avatar")
+    st.write("**Avatar:**")
     avatar_option = st.radio(
         "Avatar Type",
         ["Emoji", "Upload Image"],
         index=0,
-        horizontal=True
+        horizontal=True,
+        key="avatar_option"
     )
+
+    # Initialize avatar data in form_data
+    form_data["appearance"]["avatar_type"] = avatar_option
+    form_data["appearance"]["avatar_emoji"] = form_data["basic"]["emoji"]
+
     if avatar_option == "Upload Image":
-        form_data["appearance"]["uploaded_file"] = st.file_uploader(
+        uploaded_file = st.file_uploader(
             "Upload Avatar Image",
-            type=["png", "jpg", "jpeg"]
+            type=["png", "jpg", "jpeg"],
+            key="avatar_upload"
         )
-        if form_data["appearance"]["uploaded_file"]:
-            st.image(form_data["appearance"]["uploaded_file"], width=100)
+
+        if uploaded_file:
+            form_data["appearance"]["uploaded_file"] = uploaded_file
+            # Show the uploaded image preview
+            st.image(uploaded_file, width=100, caption="Uploaded Avatar")
+            # Don't show emoji when image is uploaded
+            form_data["appearance"]["avatar_emoji"] = None
+        else:
+            # No file uploaded, fall back to emoji
+            form_data["appearance"]["uploaded_file"] = None
+            st.write(f"Preview: {form_data['basic']['emoji']}")
     else:
+        # Emoji selected
+        form_data["appearance"]["uploaded_file"] = None
+        form_data["appearance"]["avatar_emoji"] = form_data["basic"]["emoji"]
         st.write(f"Preview: {form_data['basic']['emoji']}")
+
 
     # ===== Appearance Section =====
     st.subheader("👀 Physical Appearance")

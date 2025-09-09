@@ -25,7 +25,7 @@ CONFIG = {
         "sweet": "Sweet_Ref.wav",
         "playful": "Playful_Ref.wav",
         "gross": "Gross_Ref.wav",
-        "soft": "Soft_Ref.wav",
+        "whisper": "whisper.wav",
         "bratty": "Bratty_Ref.wav",
         "goth": "Goth_Ref.wav"
     },
@@ -200,17 +200,24 @@ class VoiceService:
 
     def extract_dialogue(self, text: str) -> str:
         """
-        Extract only the dialogue portions from text (content within quotation marks)
+        Extract only the dialogue portions from text (content within quotes)
+        Adds trailing pauses to prevent audio cutoff
         Returns empty string if no dialogue found.
         """
         # Find all text between quotes (including nested quotes)
         dialogues = re.findall(r'"(.*?)"', text)
 
+        if not dialogues:
+            return ""
+
         # Join with pauses between dialogue segments
         processed = " ... ... ".join(dialogues)
 
-        # If no dialogue found, return empty string
-        return processed if processed.strip() else ""
+        # Add trailing pauses to prevent audio cutoff
+        if processed.strip():
+            processed += " ... "
+
+        return processed
 
     def generate_speech(self, text: str, emotion:str, dialogue_only: bool = True) -> str:
         """Generate speech from text with the selected emotion"""

@@ -18,6 +18,12 @@ from views.pages.my_bots import my_bots_page
 from views.pages.edit_bot import edit_bot_page
 from views.pages.voice import voice_page
 from views.pages.group_chat import group_chat_page
+from services.image_service import ImageService
+
+# Initialize the service (add to your service initialization section)
+image_service = ImageService(upload_dir="avatars", max_size_mb=5)
+st.session_state.image_service = image_service
+
 
 def initialize_chat_memory():
     """Initialize and return a properly configured conversation memory"""
@@ -37,7 +43,8 @@ def initialize_session_state():
         st.session_state.greeting_sent = False
     if 'memory' not in st.session_state:
         st.session_state.memory = initialize_chat_memory()
-
+    if 'image_service' not in st.session_state:
+        st.session_state.image_service = ImageService(upload_dir="avatars", max_size_mb=5)
     if 'voice_service' not in st.session_state:
         try:
             st.session_state.voice_service = VoiceService()
