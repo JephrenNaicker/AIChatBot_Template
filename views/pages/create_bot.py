@@ -27,11 +27,7 @@ async def _render_character_details_section(form_data):
             max_chars=NAME_LIMIT,
             key="name_input"
         )
-        # Display character count for name
-        name_count = len(name_input)
-        st.markdown(
-            f'<div style="text-align: right; color: #666; font-size: 0.8rem;">{name_count}/{NAME_LIMIT} characters</div>',
-            unsafe_allow_html=True)
+
         form_data["basic"]["name"] = name_input
 
     return form_data
