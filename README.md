@@ -73,6 +73,38 @@ fluffy_app/
 └── tests/               # Uni
 Requirements 📋
 Python 3.8+
+#limits
+
+--Fix chat page the image chat is showing for both AI and User
+--Key words not working
+--also lets move the chat tools to the btm with the type your message
+--Name:80
+--intro:1000
+--Personality and welcome message:6000
+Add a scenario section:
+Image location thing, and the mood thing 
+
+1. The "Location-Based" Model (Simple & Logical)
+Instead of being tied to a number of messages, the background changes when the conversation logically moves to a new place.
+
+How it works: The AI bot is responsible for narrating location changes within the chat itself (e.g., "Let's step out into the garden," or "The portal swirls, and you find yourself in a dusty library.").
+
+The Trigger: Your chat_controller watches the bot's messages for key phrases or you explicitly add a command (e.g., [SETTING: ancient ruins]) that the controller can parse.
+
+Why it's cool: It puts narrative control in the hands of the AI (or the user, if they type the command), making the background change feel like an organic part of the story. It's very intuitive.
+
+2. The "Mood-Based" Model (Atmospheric & Subtle)
+The background reflects the emotional tone of the conversation.
+
+How it works: You analyze the conversation for sentiment. Is it tense, romantic, joyful, melancholic?
+
+The Trigger: After each message (or every few messages), a lightweight sentiment analysis model/function assigns a "mood" score. A significant shift in mood triggers a regeneration.
+
+Prompting: The prompt becomes less about objects and more about style and color: "digital art of a melancholic, rainy cityscape at dusk, blue tones, cinematic, moody."
+
+Why it's cool: It creates a powerful, subconscious emotional feedback loop. The user feels the tone shift not just in the text, but in the entire environment of the app.
+
+
 
 Streamlit
 
