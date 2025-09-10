@@ -2,8 +2,8 @@ import streamlit as st
 import os
 from config import TAG_OPTIONS, PERSONALITY_TRAITS,DEFAULT_RULES
 from PIL import Image
-from components.bot_card import bot_card, get_bot_card_css
-
+from components.bot_card_manage import manage_bot_card
+from components.bot_card import get_bot_card_css  # For shared CSS only
 
 class BotManager:
 
@@ -460,15 +460,14 @@ class BotManager:
         ]
 
     @staticmethod
-    @staticmethod
     def _display_bots_grid(bots):
         """Display bots in a responsive grid layout using the bot_card component"""
         cols = st.columns(2)
 
         for i, bot in enumerate(bots):
             with cols[i % 2]:
-                # Use the portrait variant of the bot card
-                bot_card(bot, show_actions=False, key_suffix=str(i), variant="portrait")
+                # Use the management bot card component instead of the old bot_card
+                manage_bot_card(bot=bot, key_suffix=str(i))
 
                 # Additional actions specific to my_bots page
                 action_cols = st.columns([1, 1, 1])

@@ -16,48 +16,50 @@ def bot_card(bot, show_actions=True, key_suffix="", on_chat=None, variant="defau
     else:
         return _default_bot_card(bot, show_actions, unique_key, on_chat)
 
-
 def _portrait_bot_card(bot, show_actions, unique_key, on_chat):
     """Portrait-style bot card with background image"""
     # Get avatar HTML for background
     avatar_html = _get_portrait_avatar_html(bot)
 
-    # Status badge
-    status = bot.get("status", "draft")
-    status_color = "#f39c12" if status == "draft" else "#2ecc71"
-    status_text = "DRAFT" if status == "draft" else "PUBLISHED"
+    # Status badge - only for user bots
+    status_html = ""
+    if bot.get("custom", True):  # This is a user-created bot
+        status = bot.get("status", "draft")
+        status_color = "#f39c12" if status == "draft" else "#2ecc71"
+        status_text = "DRAFT" if status == "draft" else "PUBLISHED"
+        status_html = f'<span class="status-badge status-{status}" style="background: {status_color};">{status_text}</span>'
 
-    # Create the HTML content
+    # Create the HTML content - ensure proper formatting
     html_content = f"""
-    <div class="portrait-card">
-        {avatar_html}
-        <span class="status-badge status-{status}" style="background: {status_color};">{status_text}</span>
-        <div class="portrait-card-content">
-            <div class="portrait-card-name">{bot['name']}</div>
-            <div class="portrait-card-desc">{bot['desc'][:100]}{'...' if len(bot['desc']) > 100 else ''}</div>
-        </div>
+<div class="portrait-card">
+    {avatar_html}
+    {status_html}
+    <div class="portrait-card-content">
+        <div class="portrait-card-name">{bot['name']}</div>
+        <div class="portrait-card-desc">{bot['desc'][:100]}{'...' if len(bot['desc']) > 100 else ''}</div>
     </div>
-    """
+</div>
+"""
 
-    # Display the HTML
-    st.markdown(html_content, unsafe_allow_html=True)
+    # Display the HTML - use container to avoid markdown parsing issues
+    with st.container():
+        st.markdown(html_content, unsafe_allow_html=True)
 
-    # Action buttons
+    # Action buttons - only show chat for default bots, show both for custom bots
     if show_actions:
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            if st.button("💬", key=f"chat_{unique_key}", help="Chat with bot", use_container_width=True):
+        if bot.get("custom", False):  # Custom bot - show edit and chat
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button("💬 Chat", key=f"chat_{unique_key}", use_container_width=True):
+                    _handle_chat_click(bot, on_chat)
+            with col2:
+                if st.button("✏️ Edit", key=f"edit_{unique_key}", use_container_width=True):
+                    st.session_state.editing_bot = bot
+                    st.session_state.page = "edit_bot"
+                    st.rerun()
+        else:  # Default bot - only show chat
+            if st.button("💬 Chat", key=f"chat_{unique_key}", use_container_width=True):
                 _handle_chat_click(bot, on_chat)
-        with col2:
-            if st.button("✏️", key=f"edit_{unique_key}", help="Edit bot", use_container_width=True):
-                st.session_state.editing_bot = bot
-                st.session_state.page = "edit_bot"
-                st.rerun()
-        with col3:
-            if st.button("⚙️", key=f"options_{unique_key}", help="More options", use_container_width=True):
-                st.session_state.selected_bot_for_options = bot
-                st.rerun()
-
 
 def _default_bot_card(bot, show_actions, unique_key, on_chat):
     """Default bot card layout"""
@@ -127,22 +129,39 @@ def _get_portrait_avatar_html(bot):
 
             return f'<img src="data:image/jpeg;base64,{img_data}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 16px;">'
         except Exception as e:
-            # Fallback to emoji background
-            return f'''
-            <div style="width: 100%; height: 100%; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
-                      display: flex; align-items: center; justify-content: center; border-radius: 16px;">
-                <span style="font-size: 3rem;">{bot.get("emoji", "🤖")}</span>
-            </div>
-            '''
+            # Fallback to enhanced emoji background
+            return _get_enhanced_emoji_background(bot)
 
-    # Handle emoji background
+    # Handle emoji background with enhanced styling
     else:
-        return f'''
-        <div style="width: 100%; height: 100%; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
-                  display: flex; align-items: center; justify-content: center; border-radius: 16px;">
-            <span style="font-size: 3rem;">{bot.get("emoji", "🤖")}</span>
-        </div>
-        '''
+        return _get_enhanced_emoji_background(bot)
+
+
+def _get_enhanced_emoji_background(bot):
+    """Create a more visually appealing emoji background"""
+    emoji = bot.get("emoji", "🤖")
+
+    # Different gradient backgrounds based on bot type or random
+    gradients = [
+        "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+        "linear-gradient(135deg, #f093fb 0%, #f5576c 100%)",
+        "linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)",
+        "linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)",
+        "linear-gradient(135deg, #fa709a 0%, #fee140 100%)",
+        "linear-gradient(135deg, #a8edea 0%, #fed6e3 100%)"
+    ]
+
+    # Choose gradient based on emoji hash for consistency
+    gradient_index = hash(emoji) % len(gradients)
+    selected_gradient = gradients[gradient_index]
+
+    return f'''
+    <div style="width: 100%; height: 100%; background: {selected_gradient}; 
+              display: flex; align-items: center; justify-content: center; border-radius: 16px;
+              box-shadow: inset 0 0 20px rgba(0,0,0,0.1);">
+        <span style="font-size: 4rem; text-shadow: 2px 2px 4px rgba(0,0,0,0.3);">{emoji}</span>
+    </div>
+    '''
 
 
 def _get_avatar_html(bot):
@@ -239,6 +258,20 @@ def get_bot_card_css():
 
         .status-published {
             background: #2ecc71;
+        }
+        
+         /* Additional styles for home page layout */
+        .full-width-grid {
+            width: 100%;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .bot-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 1.5rem;
+            margin: 2rem 0;
         }
     </style>
     """

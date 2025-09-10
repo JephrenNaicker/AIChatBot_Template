@@ -35,8 +35,6 @@ fluffy_app/
 ├── __init__.py
 ├── main.py               # Entry point (contains the main() function)
 ├── config.py             # Constants and configurations
-├── static/               # For CSS/images
-│   └── styles.css        # Moved CSS from Styles class
 ├── models/               # Data models/schemas
 │   ├── __init__.py
 │   ├── bot.py           # Bot data structure
@@ -66,7 +64,9 @@ fluffy_app/
 │   ├── voice.py
 │   └── group_chat.py
 ├── components/      # Reusable components
-│   ├── bot_card.py
+│   ├── bot_card.py  #functionality and CSS for all bot cards
+│   ├── bot_card_home.py   # main gallery page
+│   ├── bot_card_manage.py #"My Bots" management page
 │   ├── audio_player.py
 │   ├── sidebar.py
 │   └── chat_toolbar.py
