@@ -89,10 +89,7 @@ async def _render_appearance_section(form_data):
             max_chars=APPEARANCE_LIMIT,
             key="appearance_text_widget"
         )
-        # Display character count for appearance
-        appearance_count = len(appearance_text)
-        st.markdown(f'<div class="char-count">{appearance_count}/{APPEARANCE_LIMIT} characters</div>', unsafe_allow_html=True)
-        st.markdown('</div>', unsafe_allow_html=True)
+
     with enhance_col:
         if st.button("✨", key="enhance_appearance", help="Enhance description with AI"):
             with st.spinner("Enhancing description..."):
@@ -123,9 +120,6 @@ async def _render_background_section(form_data):
             key="desc_text_widget"
         )
         # Display character count for description
-        desc_count = len(desc_text)
-        st.markdown(f'<div class="char-count">{desc_count}/{DESC_LIMIT} characters</div>', unsafe_allow_html=True)
-        st.markdown('</div>', unsafe_allow_html=True)
     with enhance_col:
         if st.button("✨", key="enhance_desc", help="Enhance description with AI"):
             with st.spinner("Enhancing description..."):
