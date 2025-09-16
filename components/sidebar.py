@@ -1,6 +1,6 @@
 import streamlit as st
 from config import PAGES
-
+from components.avatar_utils import get_avatar_display
 
 async def create_sidebar():
     """Reusable sidebar component with navigation and chat history"""
@@ -43,12 +43,22 @@ async def _display_chat_list():
         st.session_state.chat_histories = {}
 
     for bot_name in list(st.session_state.chat_histories.keys()):
+        # Find the bot in either default bots or user bots
+        all_bots = st.session_state.get('bots', []) + st.session_state.user_bots
+        bot = next((b for b in all_bots if b['name'] == bot_name), None)
+
+        if not bot:
+            continue
+
+        # Get avatar for display
+        avatar = get_avatar_display(bot, size=24)
+
         cols = st.columns([1, 4, 1])
         with cols[0]:
-            # Get emoji from either default bots or user bots
-            all_bots = st.session_state.get('bots', []) + st.session_state.user_bots
-            bot_emoji = next((b['emoji'] for b in all_bots if b['name'] == bot_name), "🤖")
-            st.write(bot_emoji)
+            if isinstance(avatar, str):  # Emoji
+                st.write(avatar)
+            else:  # Image
+                st.image(avatar, width=24)
 
         with cols[1]:
             if st.button(bot_name, key=f"select_{bot_name}"):
