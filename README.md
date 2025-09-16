@@ -69,18 +69,15 @@ fluffy_app/
 │   ├── bot_card_manage.py #"My Bots" management page
 │   ├── audio_player.py
 │   ├── sidebar.py
+│   ├── avatar_utils.py
 │   └── chat_toolbar.py
 └── tests/               # Uni
 Requirements 📋
 Python 3.8+
 #limits
 
---Fix chat page the image chat is showing for both AI and User
 --Key words not working
---also lets move the chat tools to the btm with the type your message
---Name:80
---intro:1000
---Personality and welcome message:6000
+-- add a overlay bg for the chats
 Add a scenario section:
 Image location thing, and the mood thing 
 

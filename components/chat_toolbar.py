@@ -43,48 +43,7 @@ async def display_chat_toolbar(controller: LLMChatController = None):
                 st.rerun()
 
             st.divider()
-
-            # Regenerate last response option
-            disabled = len(chat_history) < 2  # Need at least 1 exchange (greeting + user + response)
-            if st.button(
-                    "🔄 Regenerate Last",
-                    help="Regenerate bot's last response",
-                    disabled=disabled,
-                    use_container_width=True,
-                    key=f"regen_last_{bot_name}"
-            ):
-                if not disabled:
-                    try:
-                        # Find the last bot response (skip the greeting if it's the only one)
-                        last_bot_idx = None
-                        for i in range(len(chat_history) - 1, -1, -1):
-                            if chat_history[i][0] == "assistant" and i > 0:  # Skip greeting
-                                last_bot_idx = i
-                                break
-
-                        if last_bot_idx is not None:
-                            user_message = chat_history[last_bot_idx - 1][1]
-
-                            # Remove everything after the user message
-                            st.session_state.chat_histories[bot_name] = chat_history[:last_bot_idx]
-
-                            # Clear memory of this exchange
-                            if 'memory' in st.session_state:
-                                messages = st.session_state.memory['chat_history'].messages
-                                if len(messages) >= 2:
-                                    st.session_state.memory['chat_history'].messages = messages[:-2]
-
-                            # Regenerate response
-                            with st.spinner("Regenerating response..."):
-                                new_response = await controller.generate_single_response(user_message)
-                                st.session_state.chat_histories[bot_name].append(("assistant", new_response))
-
-                            st.rerun()
-                    except Exception as e:
-                        st.error(f"Failed to regenerate: {str(e)}")
-
-            st.divider()
-
+            
             # Export chat option
             if st.button(
                     "💾 Export Chat",
