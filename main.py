@@ -20,6 +20,9 @@ from views.pages.voice import voice_page
 from views.pages.group_chat import group_chat_page
 from services.image_service import ImageService
 
+# Import bot card CSS
+from components.bot_card import get_bot_card_css
+
 # Initialize the service (add to your service initialization section)
 image_service = ImageService(upload_dir="avatars", max_size_mb=5)
 st.session_state.image_service = image_service
@@ -83,28 +86,32 @@ def initialize_session_state():
 
 
 def apply_global_styles():
-    """Apply global CSS styles"""
-    # You can either keep this in main.py or move to a dedicated styles service
-    st.markdown("""
-    <style>
-        /* Your global CSS styles here */
-        .bot-card {
-            border: 1px solid #444;
-            border-radius: 8px;
-            padding: 1rem;
-            height: 220px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            text-align: center;
-            background: #1e1e1e;
-            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
-            transition: transform 0.2s;
-        }
-        /* Add other styles as needed */
-    </style>
-    """, unsafe_allow_html=True)
+    """Apply global CSS styles including bot card styles"""
+    # Load bot card CSS
+    bot_card_css = get_bot_card_css()
+
+    # Add FOUC prevention
+    fouc_prevention = """
+    <script>
+    // Prevent FOUC (Flash of Unstyled Content)
+    document.addEventListener('DOMContentLoaded', function() {
+        // Hide elements initially
+        const style = document.createElement('style');
+        style.textContent = '.portrait-card, .portrait-card-content, .portrait-card-name, .portrait-card-desc { visibility: hidden; }';
+        document.head.appendChild(style);
+
+        // Show elements after a short delay to ensure CSS is loaded
+        setTimeout(function() {
+            const elements = document.querySelectorAll('.portrait-card, .portrait-card-content, .portrait-card-name, .portrait-card-desc');
+            elements.forEach(el => {
+                el.style.visibility = 'visible';
+            });
+        }, 100);
+    });
+    </script>
+    """
+
+    st.markdown(bot_card_css + fouc_prevention, unsafe_allow_html=True)
 
 
 async def main():

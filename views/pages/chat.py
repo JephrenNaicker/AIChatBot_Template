@@ -4,7 +4,7 @@ from components.audio_player import audio_player
 from components.chat_toolbar import display_chat_toolbar
 from components.avatar_utils import get_avatar_display
 import pyperclip
-
+from config import BOTS  # Add this import
 
 async def chat_page(bot_name):
     """Chat page with the selected bot"""
@@ -125,14 +125,19 @@ def _apply_chat_styles():
     """, unsafe_allow_html=True)
 
 
-# ... (rest of the methods remain the same as in the previous version)
 def _get_bot_details(bot_name):
-    """Get the bot's details from session state"""
-    return next(
-        (b for b in st.session_state.get('bots', []) + st.session_state.user_bots
-         if b["name"] == bot_name),
-        None
-    )
+    """Get the bot's details from session state - FIXED VERSION"""
+    # Check default bots (from config)
+    default_bot = next((b for b in BOTS if b["name"] == bot_name), None)
+    if default_bot:
+        return default_bot
+
+    # Check user bots
+    user_bot = next((b for b in st.session_state.user_bots if b["name"] == bot_name), None)
+    if user_bot:
+        return user_bot
+
+    return None
 
 
 def _handle_bot_not_found():
