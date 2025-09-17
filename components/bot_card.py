@@ -195,7 +195,6 @@ def _get_avatar_html(bot):
     else:
         return f'<div style="font-size: 2rem; text-align: center; width: 60px; height: 60px; display: flex; align-items: center; justify-content: center; background: #f0f2f6; border-radius: 8px;">{bot.get("emoji", "🤖")}</div>'
 
-
 def get_bot_card_css():
     """Return CSS for bot cards"""
     return """
@@ -208,6 +207,7 @@ def get_bot_card_css():
             overflow: hidden;
             margin: 0 auto 1rem auto;
             box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            background: white; /* Add background to ensure visibility */
         }
 
         .portrait-card-content {
@@ -229,6 +229,7 @@ def get_bot_card_css():
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
+            color: white !important; /* Force white color */
         }
 
         .portrait-card-desc {
@@ -239,6 +240,7 @@ def get_bot_card_css():
             display: -webkit-box;
             -webkit-line-clamp: 2;
             -webkit-box-orient: vertical;
+            color: white !important; /* Force white color */
         }
 
         .status-badge {
@@ -259,14 +261,14 @@ def get_bot_card_css():
         .status-published {
             background: #2ecc71;
         }
-        
-         /* Additional styles for home page layout */
+
+        /* Additional styles for home page layout */
         .full-width-grid {
             width: 100%;
             max-width: 1200px;
             margin: 0 auto;
         }
-        
+
         .bot-grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));

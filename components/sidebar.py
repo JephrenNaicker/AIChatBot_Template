@@ -1,6 +1,7 @@
 import streamlit as st
 from config import PAGES
 from components.avatar_utils import get_avatar_display
+from config import BOTS
 
 async def create_sidebar():
     """Reusable sidebar component with navigation and chat history"""
@@ -43,8 +44,8 @@ async def _display_chat_list():
         st.session_state.chat_histories = {}
 
     for bot_name in list(st.session_state.chat_histories.keys()):
-        # Find the bot in either default bots or user bots
-        all_bots = st.session_state.get('bots', []) + st.session_state.user_bots
+        # Find the bot in either default bots (from config) or user bots
+        all_bots = BOTS + st.session_state.user_bots  # Use BOTS instead of st.session_state.bots
         bot = next((b for b in all_bots if b['name'] == bot_name), None)
 
         if not bot:
