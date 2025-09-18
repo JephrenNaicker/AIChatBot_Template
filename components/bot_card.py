@@ -277,3 +277,164 @@ def get_bot_card_css():
         }
     </style>
     """
+
+def get_bot_card_with_hover_css():
+    """Return CSS for bot cards with expanding hover effects showing all details"""
+    return """
+    <style>
+    .portrait-card {
+        width: 200px;
+        height: 280px;
+        border-radius: 16px;
+        position: relative;
+        overflow: hidden;
+        margin: 0 auto 1rem auto;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        background: white;
+        transition: all 0.4s ease;
+        cursor: pointer;
+    }
+
+    .portrait-card:hover {
+        height: 380px; /* Expand the card height on hover */
+        transform: translateY(-10px);
+        box-shadow: 0 15px 35px rgba(0,0,0,0.3) !important;
+        z-index: 10;
+    }
+
+    .portrait-card-content {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        background: rgba(0,0,0,0.8);
+        color: white;
+        padding: 1rem;
+        border-bottom-left-radius: 16px;
+        border-bottom-right-radius: 16px;
+        transition: all 0.3s ease;
+    }
+
+    .portrait-card:hover .portrait-card-content {
+        opacity: 0; /* Hide the original content on hover */
+    }
+
+    .bot-info-expanded {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: linear-gradient(135deg, rgba(20,20,40,0.98) 0%, rgba(40,40,60,0.98) 100%);
+        color: white;
+        padding: 1.5rem;
+        border-radius: 16px;
+        opacity: 0;
+        transition: opacity 0.3s ease;
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-start;
+        align-items: center;
+        text-align: center;
+        overflow-y: auto;
+        transform: translateY(20px);
+    }
+
+    .portrait-card:hover .bot-info-expanded {
+        opacity: 1;
+        transform: translateY(0);
+    }
+
+    .bot-info-expanded h4 {
+        margin: 0 0 1rem 0;
+        font-size: 1.3rem;
+        font-weight: bold;
+        color: #fff;
+        text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+    }
+
+    .bot-info-expanded .bot-description {
+        margin: 0 0 1rem 0;
+        font-size: 0.9rem;
+        line-height: 1.4;
+        opacity: 0.9;
+    }
+
+    .bot-tags-container {
+        margin: 0.5rem 0 1rem 0;
+        width: 100%;
+    }
+
+    .bot-tags-title {
+        font-size: 0.8rem;
+        font-weight: bold;
+        margin-bottom: 0.5rem;
+        opacity: 0.8;
+        color: #a0a0ff;
+    }
+
+    .bot-tags {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.4rem;
+        justify-content: center;
+    }
+
+    .bot-tag {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 0.3rem 0.8rem;
+        border-radius: 1rem;
+        font-size: 0.75rem;
+        font-weight: 500;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+
+    .bot-emoji {
+        font-size: 2.5rem;
+        margin-bottom: 0.8rem;
+        text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+    }
+
+    .bot-action-hint {
+        margin-top: auto;
+        padding: 0.8rem;
+        background: rgba(255,255,255,0.15);
+        border-radius: 10px;
+        font-size: 0.8rem;
+        opacity: 0.9;
+        border: 1px solid rgba(255,255,255,0.2);
+        width: 100%;
+        box-sizing: border-box;
+    }
+
+    /* Scrollbar styling */
+    .bot-info-expanded::-webkit-scrollbar {
+        width: 4px;
+    }
+
+    .bot-info-expanded::-webkit-scrollbar-track {
+        background: rgba(255,255,255,0.1);
+        border-radius: 2px;
+    }
+
+    .bot-info-expanded::-webkit-scrollbar-thumb {
+        background: rgba(255,255,255,0.3);
+        border-radius: 2px;
+    }
+
+    .bot-info-expanded::-webkit-scrollbar-thumb:hover {
+        background: rgba(255,255,255,0.5);
+    }
+
+    /* Ensure cards don't overlap when expanded */
+    .stColumn {
+        position: relative;
+        z-index: 1;
+    }
+
+    .stColumn:hover {
+        z-index: 10;
+    }
+    </style>
+    """

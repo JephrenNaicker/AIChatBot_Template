@@ -2,11 +2,14 @@
 import streamlit as st
 from config import BOTS
 from components.bot_card_home import home_bot_card
-from components.bot_card import get_bot_card_css
-
+from components.bot_card import get_bot_card_css, get_bot_card_with_hover_css
 
 async def home_page():
-    """Home page with view/chat only bot cards"""
+    """Home page with view/chat only bot cards with enhanced hover"""
+    # Inject CSS for bot cards with enhanced hover effects
+    st.markdown(get_bot_card_css(), unsafe_allow_html=True)
+    st.markdown(get_bot_card_with_hover_css(), unsafe_allow_html=True)
+
     st.title("🤖 Chat Bot Gallery")
     search_query = st.text_input("🔍 Search bots...",
                                  placeholder="Type to filter bots",
