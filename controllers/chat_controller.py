@@ -40,37 +40,97 @@ class LLMChatController:
 
     def _init_dialog_chain(self):
         bot_name = st.session_state.get('selected_bot', '')
-        current_bot = next((b for b in BOTS + st.session_state.user_bots if b["name"] == bot_name), None)
+
+        # Combine default bots and user bots
+        all_bots = BOTS + st.session_state.user_bots
+        current_bot = next((b for b in all_bots if b["name"] == bot_name), None)
 
         if current_bot:
+            # Handle both default bots and user bots structure
             personality = current_bot.get("personality", {})
-            system_rules = current_bot.get("system_rules", {})
+
+            # Default bots don't have system_rules, so use DEFAULT_RULES from config
+            system_rules = current_bot.get("system_rules", "")
+            if not system_rules:
+                from config import DEFAULT_RULES
+                system_rules = DEFAULT_RULES
+
+            # Clean up the system_rules to remove any empty variables
+            if system_rules and isinstance(system_rules, str):
+                # Remove any empty lines or problematic characters
+                system_rules = "\n".join([line for line in system_rules.split("\n") if line.strip()])
+            else:
+                system_rules = ""
+
+            # Clean up personality traits and quirks
+            traits = personality.get('traits', [])
+            if isinstance(traits, str):
+                traits = [t.strip() for t in traits.split(',') if t.strip()]
+            traits_str = ', '.join([t for t in traits if t]) or "friendly"
+
+            quirks = personality.get('quirks', [])
+            if isinstance(quirks, str):
+                quirks = [q.strip() for q in quirks.split(',') if q.strip()]
+            quirks_str = ', '.join([q for q in quirks if q]) or "none"
+
+            speech_pattern = personality.get('speech_pattern', 'neutral') or "neutral"
+            tone = personality.get('tone', 'neutral') or "neutral"
+
+            # Get description - handle different possible field names
+            desc = current_bot.get('desc') or current_bot.get('description') or "A helpful AI assistant"
+            emoji = current_bot.get('emoji', '🤖')
+
             # Unified template that works for both single and group chats
-            prompt_template = f"""You are {bot_name} ({current_bot['emoji']}), {current_bot['desc']}.
-                
-                [CHARACTER DIRECTIVES]
-                {system_rules}
-    			[Your Personality Rules]
-    			- Always respond as {bot_name}
-    			- Traits: {', '.join(personality.get('traits', []))}
-    			- Speech: {personality.get('speech_pattern', 'neutral')}
-    			- Quirks: {', '.join(personality.get('quirks', []))}
-    		     - Never break character!
-                 - Never mention 'user_input' or ask for input - just respond as your character
-    			[Your Memory]
-    			{{chat_history}}
+            prompt_template = f"""You are {bot_name} ({emoji}), {desc}.
 
-    			User: {{user_input}}
+    [CHARACTER DIRECTIVES]
+    {system_rules}
 
-    			{bot_name}:"""
+    [Your Personality Rules]
+    - Always respond as {bot_name}
+    - Tone: {tone}
+    - Traits: {traits_str}
+    - Speech: {speech_pattern}
+    - Quirks: {quirks_str}
+    - Never break character!
+    - Never mention 'user_input' or ask for input - just respond as your character
 
-            self.dialog_chain = RunnableSequence(
-                PromptTemplate(
+    [Your Memory]
+    {{chat_history}}
+
+    User: {{user_input}}
+
+    {bot_name}:"""
+
+            # Debug: Print the template to check for issues
+            print(f"DEBUG: Prompt template for {bot_name}:")
+            print(prompt_template)
+
+            # Create the prompt template with proper input variables
+            try:
+                prompt = PromptTemplate(
                     input_variables=["user_input", "chat_history"],
                     template=prompt_template
-                ) | self.llm
-            )
+                )
+
+                # Verify the template has the correct variables
+                print(f"DEBUG: Template input variables: {prompt.input_variables}")
+
+                self.dialog_chain = RunnableSequence(
+                    prompt | self.llm
+                )
+            except Exception as e:
+                print(f"ERROR creating prompt template: {str(e)}")
+                # Fallback to simple template
+                self.dialog_chain = RunnableSequence(
+                    PromptTemplate(
+                        input_variables=["user_input"],
+                        template="Respond to the user: {{user_input}}"
+                    ) | self.llm
+                )
         else:
+            # Fallback if bot not found
+            print(f"WARNING: Bot '{bot_name}' not found in BOTS or user_bots")
             self.dialog_chain = RunnableSequence(
                 PromptTemplate(
                     input_variables=["user_input"],
@@ -96,11 +156,18 @@ class LLMChatController:
 
     def get_chat_history(self):
         """Get formatted chat history"""
-        messages = st.session_state.memory['chat_history'].messages
-        return "\n".join(
-            f"{'User' if isinstance(msg, HumanMessage) else 'AI'}: {msg.content}"
-            for msg in messages
-        )
+        try:
+            if 'memory' not in st.session_state:
+                self._init_memory_buffer()
+
+            messages = st.session_state.memory['chat_history'].messages
+            return "\n".join(
+                f"{'User' if isinstance(msg, HumanMessage) else 'AI'}: {msg.content}"
+                for msg in messages
+            )
+        except Exception as e:
+            print(f"ERROR in get_chat_history: {str(e)}")
+            return ""  # Return empty history if there's an error
 
     @lru_cache(maxsize=100)  # Cache up to 100 responses
     def _cached_llm_invoke(self, prompt: str, bot_context: str) -> str:
@@ -128,15 +195,30 @@ class LLMChatController:
     async def generate_single_response(self, user_input: str) -> str:
         """Generate response with memory support"""
         try:
+            # Debug: Check if chat_histories exists and has the selected bot
+            if 'chat_histories' not in st.session_state:
+                st.session_state.chat_histories = {}
+
             # Get current chat history
-            chat_history = st.session_state.chat_histories.get(st.session_state.selected_bot, [])
+            selected_bot = st.session_state.get('selected_bot')
+            if not selected_bot:
+                return "❌ No bot selected. Please select a bot first."
+
+            chat_history = st.session_state.chat_histories.get(selected_bot, [])
+
+            # Debug: Print current state for troubleshooting
+            print(f"DEBUG: Selected bot: {selected_bot}")
+            print(f"DEBUG: Chat history length: {len(chat_history)}")
+            print(f"DEBUG: Memory exists: {'memory' in st.session_state}")
+            if 'memory' in st.session_state:
+                print(f"DEBUG: Memory messages: {len(st.session_state.memory['chat_history'].messages)}")
 
             # If this is the first exchange after greeting, ensure greeting is properly stored
             if len(chat_history) == 2:  # [Greeting, User message]
                 greeting = chat_history[0][1]
                 self._process_memory(
                     "(Conversation started)",
-                    f"{st.session_state.selected_bot}: {greeting}"
+                    f"{selected_bot}: {greeting}"
                 )
 
             # Get formatted chat history
@@ -154,8 +236,10 @@ class LLMChatController:
 
         except Exception as e:
             import traceback
-            st.error(f"Response generation failed: {str(e)}")
-            st.text(traceback.format_exc())
+            error_msg = f"Response generation failed: {str(e)}"
+            print(f"ERROR: {error_msg}")
+            print(traceback.format_exc())
+            st.error(error_msg)
             return "❌ Sorry, I encountered an error. Please try again."
 
     async def generate_group_chat_response(self, bot: dict, prompt: str, shared_history: str) -> str:
@@ -204,20 +288,31 @@ class LLMChatController:
     async def generate_greeting(self):
         try:
             bot_name = st.session_state.get('selected_bot', 'StoryBot')
-            current_bot = next((b for b in BOTS + st.session_state.user_bots if b["name"] == bot_name), None)
+
+            # Combine default bots and user bots
+            all_bots = BOTS + st.session_state.user_bots
+            current_bot = next((b for b in all_bots if b["name"] == bot_name), None)
 
             if current_bot:
+                # Handle different personality structures
+                personality = current_bot.get("personality", {})
+
+                tone = personality.get('tone', 'neutral')
+                quirks = personality.get('quirks', [])
+                if isinstance(quirks, str):
+                    quirks = [q.strip() for q in quirks.split(',') if q.strip()]
+
                 prompt = f"""
                     As {bot_name}, create a friendly 4-5 sentence greeting that:
-                    - Uses your emoji {current_bot['emoji']}
+                    - Uses your emoji {current_bot.get('emoji', '🤖')}
                     - Mentions your name
-                    - Reflects your personality: {current_bot['personality'].get('tone', 'neutral')}
-                    - Includes one of your quirks: {', '.join(current_bot['personality'].get('quirks', []))}
+                    - Reflects your personality tone: {tone}
+                    - Includes one of your quirks: {', '.join(quirks) if quirks else 'none'}
                     - Thoughts appear in italics format
                     - Dialogue in "quotes"
                     Only return the output,response 
                     """
-                return self._cached_llm_invoke(prompt, current_bot["desc"])
+                return self._cached_llm_invoke(prompt, current_bot.get("desc", "A helpful AI assistant"))
 
             # Default fallback if bot not found
             return f"Hello! I'm {bot_name}! Let's chat!"

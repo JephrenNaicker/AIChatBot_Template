@@ -126,7 +126,7 @@ def _apply_chat_styles():
 
 
 def _get_bot_details(bot_name):
-    """Get the bot's details from session state - FIXED VERSION"""
+    """Get the bot's details from session state"""
     # Check default bots (from config)
     default_bot = next((b for b in BOTS if b["name"] == bot_name), None)
     if default_bot:
