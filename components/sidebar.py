@@ -3,6 +3,7 @@ from config import PAGES
 from components.avatar_utils import get_avatar_display
 from config import BOTS
 
+
 async def create_sidebar():
     """Reusable sidebar component with navigation and chat history"""
     with st.sidebar:
@@ -26,6 +27,10 @@ async def create_sidebar():
 
         if st.button(PAGES["voice"], use_container_width=True, key="nav_voice"):
             st.session_state.page = "voice"
+            st.rerun()
+
+        if st.button(PAGES["image_studio"], use_container_width=True, key="nav_image_studio"):
+            st.session_state.page = "image_studio"
             st.rerun()
 
         if st.button(PAGES["group_chat"], use_container_width=True, key="nav_group_chat"):

@@ -1,8 +1,7 @@
 
 # FluffyAI - Interactive Chatbot Platform
 
-![Demo Screenshot](assets/demo.png) <!-- Add a screenshot later -->
-
+![Home_Demo.png](assests/Home_Demo.png)
 ## Features ✨
 - 🧩 Multiple pre-built bot personalities (Storyteller, Sci-Fi, Mystery, etc.)
 - 🛠️ Create custom bots with unique personalities
