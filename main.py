@@ -19,6 +19,8 @@ from views.pages.edit_bot import edit_bot_page
 from views.pages.voice import voice_page
 from views.pages.group_chat import group_chat_page
 from services.image_service import ImageService
+from views.pages.image_studio import image_studio_page
+
 
 # Import bot card CSS
 from components.bot_card import get_bot_card_css
@@ -141,6 +143,8 @@ async def main():
         await edit_bot_page()
     elif st.session_state.page == "voice":
         await voice_page()
+    elif st.session_state.page == "image_studio":  # Add this condition
+        await image_studio_page()
     elif st.session_state.page == "group_chat":
         await group_chat_page()
     else:

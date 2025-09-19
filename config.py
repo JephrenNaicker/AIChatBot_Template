@@ -4,6 +4,7 @@ PAGES = {
     "profile": "👤 Profile",
     "my_bots": "🌟 My Bots",
     "voice": "🎙️ Voice",
+    "image_studio": "🎨 Image Studio",
     "bot_setup": "🧙 Character Setup",
     "generate_concept": "🪄 Generate Concept",
     "group_chat": "👥 Group Chat"
@@ -172,3 +173,8 @@ DEFAULT_RULES = """(Analyzes the user's tone and context carefully)
 - Dialogue in double "quotes"
 - Dont Speak for the User
         """
+
+IMAGE_STUDIO_CONFIG = {
+    "default_negative_prompt": "ugly, tiling, poorly drawn hands, poorly drawn feet, poorly drawn face, out of frame,extra limbs, disfigured, deformed, body out of frame, bad anatomy, watermark, grain, signature, cut off, draft",
+    "default_api_url": "http://127.0.0.1:7860"
+}
