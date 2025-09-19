@@ -46,81 +46,102 @@ async def chat_page(bot_name):
 
 
 def _apply_chat_styles():
-    """Apply custom CSS styles for chat interface"""
-    st.markdown("""
+    """Apply custom CSS styles for chat interface with dynamic gradients"""
+
+    # Default colors (fallback)
+    user_gradient = """
+        linear-gradient(135deg, 
+            rgba(30, 30, 60, 0.9) 0%, 
+            rgba(50, 40, 80, 0.9) 50%,
+            rgba(30, 30, 60, 0.9) 100%)
+    """
+
+    bot_gradient = """
+        linear-gradient(135deg, 
+            rgba(60, 30, 30, 0.9) 0%, 
+            rgba(80, 40, 40, 0.9) 50%,
+            rgba(60, 30, 30, 0.9) 100%)
+    """
+
+    # If we have a selected bot, we could extract colors from its avatar
+    # This would require some image processing or predefined color schemes
+
+    st.markdown(f"""
     <style>
-    /* Chat message containers - translucent dark background */
-    .stChatMessage {
-        background-color: rgba(0, 0, 0, 0.7) !important;
+    /* Base chat message styling */
+    .stChatMessage {{
         border-radius: 15px !important;
         padding: 1rem !important;
         margin: 0.5rem 0 !important;
         border: 1px solid rgba(255, 255, 255, 0.1) !important;
         backdrop-filter: blur(10px) !important;
-    }
+        background: rgba(0, 0, 0, 0.7) !important;
+    }}
 
     /* Message text - white for contrast */
-    .stChatMessage .stMarkdown {
+    .stChatMessage .stMarkdown {{
         color: white !important;
-    }
+    }}
 
     /* User message specific styling */
-    .stChatMessage[data-testid="stChatMessage"]:nth-child(odd) {
-        background-color: rgba(30, 30, 60, 0.8) !important;
-        border-left: 4px solid #4F8BF9 !important;
-    }
+    .stChatMessage[data-testid="stChatMessage"]:nth-child(odd) {{
+        background: {user_gradient} !important;
+        border-left: 4px solid #6C8DFF !important;
+        box-shadow: 2px 2px 10px rgba(76, 141, 255, 0.3) !important;
+    }}
 
     /* Bot message specific styling */
-    .stChatMessage[data-testid="stChatMessage"]:nth-child(even) {
-        background-color: rgba(60, 30, 30, 0.8) !important;
-        border-left: 4px solid #FF4B4B !important;
-    }
+    .stChatMessage[data-testid="stChatMessage"]:nth-child(even) {{
+        background: {bot_gradient} !important;
+        border-left: 4px solid #FF6B6B !important;
+        box-shadow: 2px 2px 10px rgba(255, 107, 107, 0.3) !important;
+    }}
 
     /* Chat input styling */
-    .stChatInput {
+    .stChatInput {{
         background-color: rgba(0, 0, 0, 0.8) !important;
         border-radius: 10px !important;
         border: 1px solid rgba(255, 255, 255, 0.2) !important;
-    }
+    }}
 
     /* Main content area */
-    .main .block-container {
+    .main .block-container {{
         background-color: rgba(0, 0, 0, 0.7) !important;
         border-radius: 15px !important;
         padding: 2rem !important;
         margin: 2rem !important;
         backdrop-filter: blur(15px) !important;
         border: 1px solid rgba(255, 255, 255, 0.1) !important;
-    }
+    }}
 
     /* Toolbar styling */
-    .stContainer {
+    .stContainer {{
         background-color: rgba(0, 0, 0, 0.8) !important;
         border-radius: 10px !important;
         padding: 1rem !important;
         backdrop-filter: blur(10px) !important;
-    }
+    }}
 
     /* Button styling for better visibility */
-    .stButton button {
+    .stButton button {{
         background-color: rgba(255, 255, 255, 0.1) !important;
         color: white !important;
         border: 1px solid rgba(255, 255, 255, 0.2) !important;
         border-radius: 8px !important;
-    }
+    }}
 
-    .stButton button:hover {
+    .stButton button:hover {{
         background-color: rgba(255, 255, 255, 0.2) !important;
         border-color: rgba(255, 255, 255, 0.3) !important;
-    }
+    }}
 
     /* Copy and regenerate buttons */
     .stButton button[title="Copy this message"],
-    .stButton button[title="Regenerate response"] {
+    .stButton button[title="Regenerate response"] {{
         background-color: rgba(255, 255, 255, 0.15) !important;
         font-size: 16px !important;
         padding: 0.25rem !important;
-    }
+    }}
     </style>
     """, unsafe_allow_html=True)
 
