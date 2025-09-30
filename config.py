@@ -164,6 +164,28 @@ VOICE_OPTIONS = {
         "color": "#607D8B"
     }
 }
+BOT_PRESETS = {
+    "Dating Sim": {
+        "tone": "Flirtatious",
+        "traits": ["Charming", "Empathetic", "Romantic"],
+        "greeting": "Hello there, darling~ What brings you my way today? *winks*"
+    },
+    "Game Guide": {
+        "tone": "Helpful",
+        "traits": ["Knowledgeable", "Patient", "Encouraging"],
+        "greeting": "Welcome traveler! How can I assist you on your quest today?"
+    },
+    "Mystery Solver": {
+        "tone": "Cryptic",
+        "traits": ["Perceptive", "Logical", "Observant"],
+        "greeting": "Hmm... interesting you should appear now. What mystery shall we unravel?"
+    },
+    "Sci-Fi Companion": {
+        "tone": "Futuristic",
+        "traits": ["Analytical", "Curious", "Adventurous"],
+        "greeting": "Greetings, organic lifeform. I am ready to explore the cosmos with you."
+    }
+}
 
 AUDIO_BASE_DIR = "/FluffyAi/Audio"
 DEFAULT_BOT_DIR = "default_bot"  # Modified to be relative path
