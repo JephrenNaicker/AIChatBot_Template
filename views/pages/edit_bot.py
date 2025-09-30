@@ -127,6 +127,49 @@ async def _render_appearance_section(form_data, bot):
     return form_data
 
 
+async def _render_scenario_section(form_data, bot):
+    """Render the scenario section"""
+    st.subheader("🎭 Scenario Context")
+
+    # Initialize session state if not exists - FIXED: Use bot data directly
+    if "scenario_text" not in st.session_state:
+        st.session_state.scenario_text = bot.get('scenario', '')
+
+    scenario_col, enhance_col = st.columns([0.9, 0.1])
+    with scenario_col:
+        st.markdown('<div class="text-area-container">', unsafe_allow_html=True)
+        scenario_text = st.text_area(
+            "Optional: Set the scene or scenario",
+            value=st.session_state.scenario_text,  # FIXED: Use session state value
+            height=100,
+            help=f"Describe the situation, setting, or context for this interaction (max {DESC_LIMIT} characters)",
+            max_chars=DESC_LIMIT,
+            placeholder="Example: We're exploring an ancient temple together. You're my guide who knows the secrets of this place...",
+            key="scenario_text_widget"
+        )
+        # Display character count for scenario
+        scenario_count = len(scenario_text)
+        st.markdown(f'<div class="char-count">{scenario_count}/{DESC_LIMIT} characters</div>', unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+
+        if st.session_state.scenario_text_widget != st.session_state.scenario_text:
+            st.session_state.scenario_text = st.session_state.scenario_text_widget
+
+    with enhance_col:
+        if st.button("✨", key="enhance_scenario", help="Enhance scenario with AI"):
+            with st.spinner("Enhancing scenario..."):
+                chat_controller = LLMChatController()
+                current_text = st.session_state.scenario_text_widget
+                enhanced_text = await chat_controller.enhance_text(current_text, "scenario context")
+                # Ensure enhanced text doesn't exceed the limit
+                if len(enhanced_text) > DESC_LIMIT:
+                    enhanced_text = enhanced_text[:DESC_LIMIT]
+                st.session_state.scenario_text = enhanced_text
+                st.rerun()
+
+    form_data["scenario"] = st.session_state.scenario_text
+    return form_data
+
 async def _render_background_section(form_data, bot):
     """Render the character background section"""
     st.subheader("📖 Character Background")
@@ -382,13 +425,17 @@ async def edit_bot_page():
     if "greeting_text" not in st.session_state:
         st.session_state.greeting_text = bot.get('personality', {}).get('greeting', '')
 
+    if "scenario_text" not in st.session_state:
+        st.session_state.scenario_text = bot.get('scenario', '')
+
     # Main form for bot editing - matches create_bot structure
     form_data = {
         "basic": {},
         "appearance": {},
         "personality": {},
         "tags": [],
-        "voice": {"enabled": False}
+        "voice": {"enabled": False},
+        "scenario": ""
     }
 
     # Render all sections
@@ -399,6 +446,7 @@ async def edit_bot_page():
     form_data = _render_personality_section(form_data, bot)
     form_data = _render_rules_section(form_data, bot)
     form_data = await _render_greeting_section(form_data, bot)
+    form_data = await _render_scenario_section(form_data, bot)
     form_data = _render_tags_section(form_data, bot)
     form_data = _render_voice_options(form_data, bot)
     form_data = _render_status_section(form_data, bot)
@@ -420,6 +468,7 @@ async def edit_bot_page():
                 "emoji": form_data["basic"]["emoji"],
                 "desc": form_data["basic"]["desc"],
                 "status": form_data["status"],
+                "scenario": form_data["scenario"],
                 "appearance": {
                     "description": form_data["appearance"]["description"],
                     "avatar_type": form_data["appearance"]["avatar_type"],
@@ -468,8 +517,9 @@ async def edit_bot_page():
 
             # Update the bot in user_bots
             bot_updated = False
+            original_bot_name = bot['name']  # Store the original name for finding the bot
             for i, b in enumerate(st.session_state.user_bots):
-                if b['name'] == bot['name']:
+                if b['name'] == original_bot_name:
                     st.session_state.user_bots[i] = updated_bot
                     bot_updated = True
                     break
@@ -480,7 +530,7 @@ async def edit_bot_page():
                 st.session_state.user_bots.append(updated_bot)
 
             # Clear session state variables
-            for key in ["appearance_text", "desc_text", "greeting_text"]:
+            for key in ["appearance_text", "desc_text", "greeting_text","scenario_text"]:
                 if key in st.session_state:
                     del st.session_state[key]
 
