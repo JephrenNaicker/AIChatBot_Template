@@ -132,6 +132,39 @@ async def _render_background_section(form_data):
     form_data["basic"]["desc"] = st.session_state.get("desc_text", desc_text)
     return form_data
 
+async def _render_scenario_section(form_data):
+    """Render the scenario section"""
+    st.subheader("🎭 Scenario Context")
+    scenario_col, enhance_col = st.columns([0.9, 0.1])
+    with scenario_col:
+        st.markdown('<div class="text-area-container">', unsafe_allow_html=True)
+        scenario_text = st.text_area(
+            "Optional: Set the scene or scenario",
+            value=st.session_state.get("scenario_text", st.session_state.get('preset_data', {}).get("scenario", "")),
+            height=100,
+            help=f"Describe the situation, setting, or context for this interaction (max {DESC_LIMIT} characters)",
+            max_chars=DESC_LIMIT,
+            placeholder="Example: We're exploring an ancient temple together. You're my guide who knows the secrets of this place...",
+            key="scenario_text_widget"
+        )
+        # Display character count for scenario
+        scenario_count = len(scenario_text)
+        st.markdown(f'<div class="char-count">{scenario_count}/{DESC_LIMIT} characters</div>', unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+    with enhance_col:
+        if st.button("✨", key="enhance_scenario", help="Enhance scenario with AI"):
+            with st.spinner("Enhancing scenario..."):
+                chat_controller = LLMChatController()
+                current_text = st.session_state.scenario_text_widget
+                enhanced_text = await chat_controller.enhance_text(current_text, "scenario context")
+                # Ensure enhanced text doesn't exceed the limit
+                if len(enhanced_text) > DESC_LIMIT:
+                    enhanced_text = enhanced_text[:DESC_LIMIT]
+                st.session_state.scenario_text = enhanced_text
+                st.rerun()
+
+    form_data["scenario"] = st.session_state.get("scenario_text", scenario_text)
+    return form_data
 
 def _render_personality_section(form_data):
     """Render the personality traits section"""
@@ -338,7 +371,8 @@ async def create_bot_page():
         "appearance": {},
         "personality": {},
         "tags": [],
-        "voice": {"enabled": False}
+        "voice": {"enabled": False},
+        "scenario": ""
     }
 
     # Render all sections
@@ -349,6 +383,7 @@ async def create_bot_page():
     form_data = _render_personality_section(form_data)
     form_data = _render_rules_section(form_data)
     form_data = await _render_greeting_section(form_data)
+    form_data = await _render_scenario_section(form_data)
     form_data = _render_tags_section(form_data)
     form_data = _render_voice_options(form_data)
     form_data = _render_status_section(form_data)

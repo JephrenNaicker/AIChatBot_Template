@@ -1,9 +1,7 @@
 import streamlit as st
-import os
-from config import TAG_OPTIONS, PERSONALITY_TRAITS,DEFAULT_RULES
+from config import TAG_OPTIONS, PERSONALITY_TRAITS,DEFAULT_RULES,BOT_PRESETS
 from PIL import Image
 from components.bot_card_manage import manage_bot_card
-from components.bot_card import get_bot_card_css  # For shared CSS only
 
 class BotManager:
 
@@ -70,28 +68,6 @@ class BotManager:
     @staticmethod
     async def _display_preset_options():
         """Display preset options at the top of the page"""
-        BOT_PRESETS = {
-            "Dating Sim": {
-                "tone": "Flirtatious",
-                "traits": ["Charming", "Empathetic", "Romantic"],
-                "greeting": "Hello there, darling~ What brings you my way today? *winks*"
-            },
-            "Game Guide": {
-                "tone": "Helpful",
-                "traits": ["Knowledgeable", "Patient", "Encouraging"],
-                "greeting": "Welcome traveler! How can I assist you on your quest today?"
-            },
-            "Mystery Solver": {
-                "tone": "Cryptic",
-                "traits": ["Perceptive", "Logical", "Observant"],
-                "greeting": "Hmm... interesting you should appear now. What mystery shall we unravel?"
-            },
-            "Sci-Fi Companion": {
-                "tone": "Futuristic",
-                "traits": ["Analytical", "Curious", "Adventurous"],
-                "greeting": "Greetings, organic lifeform. I am ready to explore the cosmos with you."
-            }
-        }
 
         st.subheader("🎭 Character Presets")
         preset_cols = st.columns(4)
@@ -162,7 +138,8 @@ class BotManager:
             "appearance": {},
             "personality": {},
             "tags": [],
-            "voice": {"enabled": False, "emotion": None}  # Initialize with proper structure
+            "voice": {"enabled": False, "emotion": None},
+            "scenario": ""
         }
 
         # Get default values from preset if available
@@ -194,7 +171,6 @@ class BotManager:
         )
 
         # Avatar selection
-        # Avatar selection - UPDATED with proper image handling
         st.write("**Avatar:**")
         avatar_option = st.radio(
             "Avatar Type",
@@ -294,7 +270,15 @@ class BotManager:
             height=100,
             help="This will be the first message users see"
         )
-
+        # ===== Scenario Section =====
+        st.subheader("🎭 Scenario Context")
+        form_data["scenario"] = st.text_area(
+            "Optional: Set the scene or scenario",
+            value=preset.get("scenario", ""),
+            height=100,
+            help="Describe the situation, setting, or context for this interaction (e.g., 'We're in a medieval tavern', 'It's a sci-fi adventure')",
+            placeholder="Example: We're exploring an ancient temple together. You're my guide who knows the secrets of this place..."
+        )
         # ===== Tags Section =====
         st.subheader("🏷️ Tags")
         all_tags = TAG_OPTIONS + st.session_state.get('custom_tags', [])
@@ -370,6 +354,7 @@ class BotManager:
                 "desc": form_data["basic"]["desc"],
                 "tags": form_data["tags"],
                 "status": form_data["status"],
+                "scenario": form_data.get("scenario", ""),
                 "personality": {
                     "tone": form_data["personality"].get("tone", "Friendly"),
                     "traits": form_data["personality"]["traits"],

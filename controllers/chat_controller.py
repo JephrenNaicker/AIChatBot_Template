@@ -62,6 +62,10 @@ class LLMChatController:
             else:
                 system_rules = ""
 
+            # Get scenario
+            scenario = current_bot.get('scenario', '')
+            scenario_context = f"\n[Current Scenario]\n{scenario}\n" if scenario else ""
+
             # Clean up personality traits and quirks
             traits = personality.get('traits', [])
             if isinstance(traits, str):
@@ -81,7 +85,7 @@ class LLMChatController:
             emoji = current_bot.get('emoji', '🤖')
 
             # Unified template that works for both single and group chats
-            prompt_template = f"""You are {bot_name} ({emoji}), {desc}.
+            prompt_template = f"""You are {bot_name} ({emoji}), {desc}.{scenario_context}
 
     [CHARACTER DIRECTIVES]
     {system_rules}
@@ -288,6 +292,7 @@ class LLMChatController:
     async def generate_greeting(self):
         try:
             bot_name = st.session_state.get('selected_bot', 'StoryBot')
+            scenario_context = ""
 
             # Combine default bots and user bots
             all_bots = BOTS + st.session_state.user_bots
@@ -302,12 +307,16 @@ class LLMChatController:
                 if isinstance(quirks, str):
                     quirks = [q.strip() for q in quirks.split(',') if q.strip()]
 
+                    # Get scenario for context
+                    scenario = current_bot.get('scenario', '')
+                    scenario_context = f"this Is the situation: {scenario}" if scenario else ""
+
                 prompt = f"""
                     As {bot_name}, create a friendly 4-5 sentence greeting that:
                     - Uses your emoji {current_bot.get('emoji', '🤖')}
                     - Mentions your name
                     - Reflects your personality tone: {tone}
-                    - Includes one of your quirks: {', '.join(quirks) if quirks else 'none'}
+                    - Includes one of your quirks: {', '.join(quirks) if quirks else 'none'}{scenario_context}
                     - Thoughts appear in italics format
                     - Dialogue in "quotes"
                     Only return the output,response 

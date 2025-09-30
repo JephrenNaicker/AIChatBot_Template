@@ -79,7 +79,8 @@ Python 3.8+
 -- add a overlay bg for the chats
 Add a scenario section:
 Image location thing, and the mood thing 
-
+--Voice getting gene auto , should be gen only if user wants. and make it asyc as cant countiue the chat
+--deleting a bot is stuck
 1. The "Location-Based" Model (Simple & Logical)
 Instead of being tied to a number of messages, the background changes when the conversation logically moves to a new place.
 
