@@ -81,6 +81,11 @@ Add a scenario section:
 Image location thing, and the mood thing 
 --Voice getting gene auto , should be gen only if user wants. and make it asyc as cant countiue the chat
 --deleting a bot is stuck
+--should be converting to mp3 for file size
+--user edit message**
+--regen is broken
+
+
 1. The "Location-Based" Model (Simple & Logical)
 Instead of being tied to a number of messages, the background changes when the conversation logically moves to a new place.
 
