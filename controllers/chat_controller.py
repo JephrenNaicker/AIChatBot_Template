@@ -318,7 +318,7 @@ class LLMChatController:
                     - Reflects your personality tone: {tone}
                     - Includes one of your quirks: {', '.join(quirks) if quirks else 'none'}{scenario_context}
                     - Thoughts appear in italics format
-                    - Dialogue in "quotes"
+                    - Dialogue in double quotes like "this"
                     Only return the output,response 
                     """
                 return self._cached_llm_invoke(prompt, current_bot.get("desc", "A helpful AI assistant"))
@@ -344,7 +344,7 @@ class LLMChatController:
             - Is 4-5 sentences maximum
             - Sounds in-character
             - Thoughts appear in italics format
-            - Dialogue in "quotes"
+            - Dialogue in "double quotes"
             
             IMPORTANT: Return ONLY the enhanced greeting text itself with no additional commentary.
             Do NOT include any introductory text like "Here is the enhanced version".

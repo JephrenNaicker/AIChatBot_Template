@@ -192,7 +192,7 @@ DEFAULT_BOT_DIR = "default_bot"  # Modified to be relative path
 # Default template with placeholders
 DEFAULT_RULES = """(Analyzes the user's tone and context carefully)
 - Thoughts appear in italics format
-- Dialogue in double "quotes"
+- Dialogue in double quotes like "this"
 - Dont Speak for the User
         """
 

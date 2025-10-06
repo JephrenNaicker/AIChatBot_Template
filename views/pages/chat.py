@@ -4,7 +4,9 @@ from components.audio_player import audio_player
 from components.chat_toolbar import display_chat_toolbar
 from components.avatar_utils import get_avatar_display
 import pyperclip
-from config import BOTS  # Add this import
+from config import BOTS
+import asyncio
+
 
 async def chat_page(bot_name):
     """Chat page with the selected bot"""
@@ -19,8 +21,9 @@ async def chat_page(bot_name):
         _handle_bot_not_found()
         return
 
-    # Initialize chat history
+    # Initialize chat history and audio cache
     _initialize_chat_history(bot_name)
+    _initialize_audio_cache()
 
     # Get current chat history
     chat_history = st.session_state.chat_histories[bot_name]
@@ -43,6 +46,11 @@ async def chat_page(bot_name):
     # Handle user input
     if user_input:
         await _handle_user_input(user_input, chat_history, bot, bot_name)
+
+    # Check if we need to rerun due to audio generation completion
+    if st.session_state.get('audio_generated', False):
+        st.session_state.audio_generated = False
+        st.rerun()
 
 
 def _apply_chat_styles():
@@ -142,37 +150,40 @@ def _apply_chat_styles():
         font-size: 16px !important;
         padding: 0.25rem !important;
     }}
+
+     /* Voice button specific styling */
+    .stButton button[title="Generate and play audio"] {{
+        background-color: rgba(255, 215, 0, 0.2) !important;
+        font-size: 16px !important;
+        padding: 0.25rem !important;
+    }}
+
+    .stButton button[title="Generate and play audio"]:hover {{
+        background-color: rgba(255, 215, 0, 0.3) !important;
+    }}
     </style>
     """, unsafe_allow_html=True)
 
 
-def _get_bot_details(bot_name):
-    """Get the bot's details from session state"""
-    # Check default bots (from config)
-    default_bot = next((b for b in BOTS if b["name"] == bot_name), None)
-    if default_bot:
-        return default_bot
-
-    # Check user bots
-    user_bot = next((b for b in st.session_state.user_bots if b["name"] == bot_name), None)
-    if user_bot:
-        return user_bot
-
-    return None
-
-
-def _handle_bot_not_found():
-    """Handle case when bot is not found"""
-    st.error("Bot not found!")
-    st.session_state.page = "my_bots"
-    st.rerun()
-
-
 def _initialize_chat_history(bot_name):
     """Initialize chat history for this bot if not exists"""
+    if "chat_histories" not in st.session_state:
+        st.session_state.chat_histories = {}
+
     if bot_name not in st.session_state.chat_histories:
         st.session_state.chat_histories[bot_name] = []
+
+    if "greeting_sent" not in st.session_state:
         st.session_state.greeting_sent = False
+
+
+def _initialize_audio_cache():
+    """Initialize audio cache in session state"""
+    if "audio_cache" not in st.session_state:
+        st.session_state.audio_cache = {}
+
+    if "audio_generated" not in st.session_state:
+        st.session_state.audio_generated = False
 
 
 async def _display_messages(chat_history, current_bot, bot_name, bot_controller):
@@ -204,7 +215,7 @@ async def _display_single_message(role, message, idx, chat_history, current_bot,
 
             # Voice button below the response (only if voice is enabled)
             if bot_has_voice and hasattr(st.session_state, 'voice_service'):
-                _display_voice_button(message, current_bot)
+                _display_voice_button(message, current_bot, bot_name, idx)
 
 
 def _display_message_actions(message, idx, chat_history, bot_name, bot_controller):
@@ -234,16 +245,78 @@ def _display_message_actions(message, idx, chat_history, bot_name, bot_controlle
                     help="Regenerate response",
                     use_container_width=True
             ):
-                _handle_regenerate_response(idx, chat_history, bot_name, bot_controller)
+                asyncio.create_task(_handle_regenerate_response(idx, chat_history, bot_name, bot_controller))
 
 
-def _handle_copy_message(message):
-    """Handle copy message to clipboard"""
+def _display_voice_button(message, current_bot, bot_name, idx):
+    """Display voice generation button and audio player with three states"""
     try:
-        pyperclip.copy(message)
-        st.toast("Message copied to clipboard!", icon="📋")
+        # Create a unique key for this message's audio
+        audio_key = f"audio_{bot_name}_{idx}"
+        generating_key = f"generating_{audio_key}"
+
+        # Initialize generating state if not exists
+        if generating_key not in st.session_state:
+            st.session_state[generating_key] = False
+
+        # Check if audio already exists in cache
+        audio_exists = audio_key in st.session_state.audio_cache
+        import os
+
+        if audio_exists:
+            # Verify the file actually exists
+            audio_path = st.session_state.audio_cache[audio_key]
+            if not os.path.exists(audio_path):
+                # Remove from cache if file doesn't exist
+                del st.session_state.audio_cache[audio_key]
+                audio_exists = False
+
+        # Show appropriate button based on state
+        if st.session_state[generating_key]:
+            # Currently generating - show loading icon
+            st.button("⏳", help="Generating audio...", key=f"loading_{audio_key}", disabled=True)
+        elif audio_exists:
+            # Audio exists - show play button
+            audio_path = st.session_state.audio_cache[audio_key]
+            if st.button("▶️", help="Play audio", key=f"play_{audio_key}"):
+                # The audio_player will handle playback
+                pass
+            audio_player(audio_path, autoplay=False)
+        else:
+            # Audio doesn't exist - show generate button
+            if st.button("🔊", help="Generate audio", key=f"generate_{audio_key}"):
+                # Set generating state and generate audio asynchronously
+                st.session_state[generating_key] = True
+                asyncio.create_task(_generate_audio_for_message(message, current_bot, audio_key, generating_key))
+
     except Exception as e:
-        st.error(f"Failed to copy: {str(e)}")
+        st.error(f"Voice button error: {str(e)}")
+
+
+async def _generate_audio_for_message(message, current_bot, audio_key, generating_key):
+    """Generate audio for a specific message and update state"""
+    try:
+        emotion = current_bot["voice"]["emotion"]
+        audio_path = st.session_state.voice_service.generate_speech(
+            message,
+            emotion,
+            dialogue_only=True
+        )
+
+        if audio_path:
+            # Cache the audio path and clear generating state
+            st.session_state.audio_cache[audio_key] = audio_path
+            st.session_state[generating_key] = False
+            # Set flag to trigger rerun
+            st.session_state.audio_generated = True
+            print(f"[SUCCESS] Audio cached for key: {audio_key}")
+        else:
+            st.error("Failed to generate audio")
+            st.session_state[generating_key] = False
+
+    except Exception as e:
+        st.error(f"Voice generation failed: {str(e)}")
+        st.session_state[generating_key] = False
 
 
 async def _handle_regenerate_response(idx, chat_history, bot_name, bot_controller):
@@ -261,6 +334,11 @@ async def _handle_regenerate_response(idx, chat_history, bot_name, bot_controlle
         if len(messages) >= 2:
             st.session_state.memory['chat_history'].messages = messages[:-2]
 
+    # Clear audio cache for removed messages
+    keys_to_remove = [key for key in st.session_state.audio_cache if bot_name in key and int(key.split('_')[-1]) >= idx]
+    for key in keys_to_remove:
+        del st.session_state.audio_cache[key]
+
     # Regenerate response
     with st.spinner("Regenerating response..."):
         new_response = await bot_controller.generate_single_response(user_message)
@@ -269,20 +347,35 @@ async def _handle_regenerate_response(idx, chat_history, bot_name, bot_controlle
     st.rerun()
 
 
-def _display_voice_button(message, current_bot):
-    """Display voice generation button and audio player"""
+def _handle_copy_message(message):
+    """Handle copy message to clipboard"""
     try:
-        emotion = current_bot["voice"]["emotion"]
-        audio_path = st.session_state.voice_service.generate_speech(
-            message,
-            emotion,
-            dialogue_only=True
-        )
-        if audio_path:
-            # Display audio player below the response
-            audio_player(audio_path, autoplay=False)
+        pyperclip.copy(message)
+        st.toast("Message copied to clipboard!", icon="📋")
     except Exception as e:
-        st.error(f"Voice generation failed: {str(e)}")
+        st.error(f"Failed to copy: {str(e)}")
+
+
+def _get_bot_details(bot_name):
+    """Get the bot's details from session state"""
+    # Check default bots (from config)
+    default_bot = next((b for b in BOTS if b["name"] == bot_name), None)
+    if default_bot:
+        return default_bot
+
+    # Check user bots
+    user_bot = next((b for b in st.session_state.user_bots if b["name"] == bot_name), None)
+    if user_bot:
+        return user_bot
+
+    return None
+
+
+def _handle_bot_not_found():
+    """Handle case when bot is not found"""
+    st.error("Bot not found!")
+    st.session_state.page = "my_bots"
+    st.rerun()
 
 
 async def _send_greeting_if_needed(chat_history, current_bot, bot_controller):
