@@ -385,8 +385,32 @@ class LLMChatController:
             return context  # Return original text if enhancement fails
 
     def clear_last_exchange(self):
-        """Remove the last Q&A pair from memory"""
-        if 'memory' in st.session_state and st.session_state.memory['chat_history'].messages:
-            messages = st.session_state.memory['chat_history'].messages
-            messages.pop()  # Remove AI response
-            messages.pop()  # Remove user message
+        """Remove the last Q&A pair from memory and session state - FIXED VERSION"""
+        try:
+            selected_bot = st.session_state.get('selected_bot')
+
+            # Clear from session state chat history
+            if selected_bot and 'chat_histories' in st.session_state:
+                chat_history = st.session_state.chat_histories.get(selected_bot, [])
+                if len(chat_history) >= 2:
+                    # Only remove the last exchange (last user + assistant messages)
+                    # But be careful not to remove the greeting
+                    if len(chat_history) > 2:  # More than just greeting + one exchange
+                        st.session_state.chat_histories[selected_bot] = chat_history[:-2]
+                        print(
+                            f"DEBUG: Cleared last exchange from chat history. Remaining: {len(st.session_state.chat_histories[selected_bot])}")
+                    else:
+                        # If only greeting + one exchange, just remove the exchange but keep greeting
+                        st.session_state.chat_histories[selected_bot] = [chat_history[0]]
+                        print(f"DEBUG: Cleared exchange but kept greeting")
+
+            # Clear from memory
+            if 'memory' in st.session_state and st.session_state.memory['chat_history'].messages:
+                messages = st.session_state.memory['chat_history'].messages
+                if len(messages) >= 2:
+                    st.session_state.memory['chat_history'].messages = messages[:-2]
+                    print(
+                        f"DEBUG: Cleared 2 messages from memory. Remaining: {len(st.session_state.memory['chat_history'].messages)}")
+
+        except Exception as e:
+            print(f"Error clearing last exchange: {str(e)}")

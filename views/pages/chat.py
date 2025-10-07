@@ -71,9 +71,6 @@ def _apply_chat_styles():
             rgba(60, 30, 30, 0.9) 100%)
     """
 
-    # If we have a selected bot, we could extract colors from its avatar
-    # This would require some image processing or predefined color schemes
-
     st.markdown(f"""
     <style>
     /* Base chat message styling */
@@ -151,18 +148,43 @@ def _apply_chat_styles():
         padding: 0.25rem !important;
     }}
 
-     /* Voice button specific styling */
-    .stButton button[title="Generate and play audio"] {{
+    /* Voice button specific styling */
+    .stButton button[title="Generate audio"],
+    .stButton button[title="Play audio"],
+    .stButton button[title="Generating audio..."] {{
         background-color: rgba(255, 215, 0, 0.2) !important;
         font-size: 16px !important;
         padding: 0.25rem !important;
     }}
 
-    .stButton button[title="Generate and play audio"]:hover {{
+    .stButton button[title="Generate audio"]:hover,
+    .stButton button[title="Play audio"]:hover {{
         background-color: rgba(255, 215, 0, 0.3) !important;
     }}
     </style>
     """, unsafe_allow_html=True)
+
+
+def _get_bot_details(bot_name):
+    """Get the bot's details from session state"""
+    # Check default bots (from config)
+    default_bot = next((b for b in BOTS if b["name"] == bot_name), None)
+    if default_bot:
+        return default_bot
+
+    # Check user bots
+    user_bot = next((b for b in st.session_state.user_bots if b["name"] == bot_name), None)
+    if user_bot:
+        return user_bot
+
+    return None
+
+
+def _handle_bot_not_found():
+    """Handle case when bot is not found"""
+    st.error("Bot not found!")
+    st.session_state.page = "my_bots"
+    st.rerun()
 
 
 def _initialize_chat_history(bot_name):
@@ -211,14 +233,14 @@ async def _display_single_message(role, message, idx, chat_history, current_bot,
         # Add copy and regenerate buttons for bot responses only (right-aligned)
         # But NOT for the first message (greeting)
         if role == "assistant" and idx > 0:  # Skip first message (greeting)
-            _display_message_actions(message, idx, chat_history, bot_name, bot_controller)
+            await _display_message_actions(message, idx, chat_history, bot_name, bot_controller)
 
             # Voice button below the response (only if voice is enabled)
             if bot_has_voice and hasattr(st.session_state, 'voice_service'):
                 _display_voice_button(message, current_bot, bot_name, idx)
 
 
-def _display_message_actions(message, idx, chat_history, bot_name, bot_controller):
+async def _display_message_actions(message, idx, chat_history, bot_name, bot_controller):
     """Display copy and regenerate buttons for a message"""
     with st.container():
         action_cols = st.columns([6, 1, 1])  # Message space, copy, regenerate
@@ -237,7 +259,7 @@ def _display_message_actions(message, idx, chat_history, bot_name, bot_controlle
             ):
                 _handle_copy_message(message)
 
-        # Regenerate button
+        # Regenerate button - use direct async call instead of session state flag
         with action_cols[2]:
             if st.button(
                     "🔄",
@@ -245,8 +267,99 @@ def _display_message_actions(message, idx, chat_history, bot_name, bot_controlle
                     help="Regenerate response",
                     use_container_width=True
             ):
-                asyncio.create_task(_handle_regenerate_response(idx, chat_history, bot_name, bot_controller))
+                await _handle_regenerate_response_direct(idx, chat_history, bot_name, bot_controller)
 
+
+async def _handle_regenerate_response_direct(idx, chat_history, bot_name, bot_controller):
+    """Handle regenerate response directly without session state flags"""
+    try:
+        # Store the user message that prompted this response
+        user_message = chat_history[idx - 1][1]  # Previous message is user input
+
+        # Remove this response and all subsequent messages
+        st.session_state.chat_histories[bot_name] = chat_history[:idx]
+
+        # Clear memory of this exchange - this is crucial!
+        if 'memory' in st.session_state:
+            # Remove the last two messages from memory (user + assistant)
+            messages = st.session_state.memory['chat_history'].messages
+            if len(messages) >= 2:
+                st.session_state.memory['chat_history'].messages = messages[:-2]
+
+        # Clear audio cache for removed messages
+        keys_to_remove = [key for key in st.session_state.audio_cache if
+                          bot_name in key and int(key.split('_')[-1]) >= idx]
+        for key in keys_to_remove:
+            # Also remove the generating state if it exists
+            generating_key = f"generating_{key}"
+            if generating_key in st.session_state:
+                del st.session_state[generating_key]
+            del st.session_state.audio_cache[key]
+
+        # Clear any regeneration flags that might be hanging around
+        if hasattr(st.session_state, 'regenerate_requested'):
+            del st.session_state.regenerate_requested
+
+        # Regenerate response with fresh context
+        with st.spinner("Regenerating response..."):
+            # Generate new response - this should be different because memory was cleared
+            new_response = await bot_controller.generate_single_response(user_message)
+            st.session_state.chat_histories[bot_name].append(("assistant", new_response))
+
+        # Force immediate rerun
+        st.rerun()
+
+    except Exception as e:
+        st.error(f"Regeneration failed: {str(e)}")
+        # Ensure we clear any stuck state
+        if hasattr(st.session_state, 'regenerate_requested'):
+            del st.session_state.regenerate_requested
+
+async def _handle_regenerate_response():
+    """Handle regenerate response functionality - called from main flow"""
+    if not hasattr(st.session_state, 'regenerate_requested'):
+        return
+
+    request = st.session_state.regenerate_requested
+    bot_name = request['bot_name']
+    idx = request['message_idx']
+    chat_history = request['chat_history']
+
+    # Store the user message that prompted this response
+    user_message = chat_history[idx - 1][1]  # Previous message is user input
+
+    # Remove this response and all subsequent messages
+    st.session_state.chat_histories[bot_name] = chat_history[:idx]
+
+    # Clear memory of this exchange
+    if 'memory' in st.session_state:
+        # Remove the last two messages from memory (user + assistant)
+        messages = st.session_state.memory['chat_history'].messages
+        if len(messages) >= 2:
+            st.session_state.memory['chat_history'].messages = messages[:-2]
+
+    # Clear audio cache for removed messages
+    keys_to_remove = [key for key in st.session_state.audio_cache if bot_name in key and int(key.split('_')[-1]) >= idx]
+    for key in keys_to_remove:
+        del st.session_state.audio_cache[key]
+
+    # Regenerate response
+    with st.spinner("Regenerating response..."):
+        bot_controller = LLMChatController()  # Create new controller instance
+        new_response = await bot_controller.generate_single_response(user_message)
+        st.session_state.chat_histories[bot_name].append(("assistant", new_response))
+
+    # Clear the regeneration request
+    del st.session_state.regenerate_requested
+
+
+def _handle_copy_message(message):
+    """Handle copy message to clipboard"""
+    try:
+        pyperclip.copy(message)
+        st.toast("Message copied to clipboard!", icon="📋")
+    except Exception as e:
+        st.error(f"Failed to copy: {str(e)}")
 
 def _display_voice_button(message, current_bot, bot_name, idx):
     """Display voice generation button and audio player with three states"""
@@ -309,7 +422,6 @@ async def _generate_audio_for_message(message, current_bot, audio_key, generatin
             st.session_state[generating_key] = False
             # Set flag to trigger rerun
             st.session_state.audio_generated = True
-            print(f"[SUCCESS] Audio cached for key: {audio_key}")
         else:
             st.error("Failed to generate audio")
             st.session_state[generating_key] = False
@@ -317,65 +429,6 @@ async def _generate_audio_for_message(message, current_bot, audio_key, generatin
     except Exception as e:
         st.error(f"Voice generation failed: {str(e)}")
         st.session_state[generating_key] = False
-
-
-async def _handle_regenerate_response(idx, chat_history, bot_name, bot_controller):
-    """Handle regenerate response functionality"""
-    # Store the user message that prompted this response
-    user_message = chat_history[idx - 1][1]  # Previous message is user input
-
-    # Remove this response and all subsequent messages
-    st.session_state.chat_histories[bot_name] = chat_history[:idx]
-
-    # Clear memory of this exchange
-    if 'memory' in st.session_state:
-        # Remove the last two messages from memory (user + assistant)
-        messages = st.session_state.memory['chat_history'].messages
-        if len(messages) >= 2:
-            st.session_state.memory['chat_history'].messages = messages[:-2]
-
-    # Clear audio cache for removed messages
-    keys_to_remove = [key for key in st.session_state.audio_cache if bot_name in key and int(key.split('_')[-1]) >= idx]
-    for key in keys_to_remove:
-        del st.session_state.audio_cache[key]
-
-    # Regenerate response
-    with st.spinner("Regenerating response..."):
-        new_response = await bot_controller.generate_single_response(user_message)
-        st.session_state.chat_histories[bot_name].append(("assistant", new_response))
-
-    st.rerun()
-
-
-def _handle_copy_message(message):
-    """Handle copy message to clipboard"""
-    try:
-        pyperclip.copy(message)
-        st.toast("Message copied to clipboard!", icon="📋")
-    except Exception as e:
-        st.error(f"Failed to copy: {str(e)}")
-
-
-def _get_bot_details(bot_name):
-    """Get the bot's details from session state"""
-    # Check default bots (from config)
-    default_bot = next((b for b in BOTS if b["name"] == bot_name), None)
-    if default_bot:
-        return default_bot
-
-    # Check user bots
-    user_bot = next((b for b in st.session_state.user_bots if b["name"] == bot_name), None)
-    if user_bot:
-        return user_bot
-
-    return None
-
-
-def _handle_bot_not_found():
-    """Handle case when bot is not found"""
-    st.error("Bot not found!")
-    st.session_state.page = "my_bots"
-    st.rerun()
 
 
 async def _send_greeting_if_needed(chat_history, current_bot, bot_controller):
