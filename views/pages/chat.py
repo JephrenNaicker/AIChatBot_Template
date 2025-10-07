@@ -1,11 +1,10 @@
 import streamlit as st
-from controllers.chat_controller import LLMChatController
-from components.audio_player import audio_player
-from components.chat_toolbar import display_chat_toolbar
+
 from components.avatar_utils import get_avatar_display
-import pyperclip
+from components.chat_toolbar import display_chat_toolbar
+from components.message_actions import display_message_actions, display_message_edit_interface, handle_pending_edit
 from config import BOTS
-import asyncio
+from controllers.chat_controller import LLMChatController
 
 
 async def chat_page(bot_name):
@@ -25,8 +24,14 @@ async def chat_page(bot_name):
     _initialize_chat_history(bot_name)
     _initialize_audio_cache()
 
+    # Handle any pending message edits first
+    await handle_pending_edit(bot)
+
     # Get current chat history
     chat_history = st.session_state.chat_histories[bot_name]
+
+    # Display message editing interface if active
+    display_message_edit_interface()
 
     # Display all messages
     await _display_messages(chat_history, current_bot, bot_name, bot)
@@ -55,7 +60,6 @@ async def chat_page(bot_name):
 
 def _apply_chat_styles():
     """Apply custom CSS styles for chat interface with dynamic gradients"""
-
     # Default colors (fallback)
     user_gradient = """
         linear-gradient(135deg, 
@@ -140,25 +144,21 @@ def _apply_chat_styles():
         border-color: rgba(255, 255, 255, 0.3) !important;
     }}
 
-    /* Copy and regenerate buttons */
-    .stButton button[title="Copy this message"],
-    .stButton button[title="Regenerate response"] {{
+    /* Message action buttons */
+    .stButton button[title^="Copy"],
+    .stButton button[title^="Regenerate"],
+    .stButton button[title^="Edit"],
+    .stButton button[title^="Delete"],
+    .stButton button[title^="Generate audio"],
+    .stButton button[title^="Play audio"],
+    .stButton button[title^="Generating audio"] {{
         background-color: rgba(255, 255, 255, 0.15) !important;
         font-size: 16px !important;
         padding: 0.25rem !important;
     }}
 
-    /* Voice button specific styling */
-    .stButton button[title="Generate audio"],
-    .stButton button[title="Play audio"],
-    .stButton button[title="Generating audio..."] {{
-        background-color: rgba(255, 215, 0, 0.2) !important;
-        font-size: 16px !important;
-        padding: 0.25rem !important;
-    }}
-
-    .stButton button[title="Generate audio"]:hover,
-    .stButton button[title="Play audio"]:hover {{
+    .stButton button[title^="Generate audio"]:hover,
+    .stButton button[title^="Play audio"]:hover {{
         background-color: rgba(255, 215, 0, 0.3) !important;
     }}
     </style>
@@ -230,205 +230,17 @@ async def _display_single_message(role, message, idx, chat_history, current_bot,
     with st.chat_message(role, avatar=avatar if role == "assistant" else None):
         st.write(message)
 
-        # Add copy and regenerate buttons for bot responses only (right-aligned)
-        # But NOT for the first message (greeting)
-        if role == "assistant" and idx > 0:  # Skip first message (greeting)
-            await _display_message_actions(message, idx, chat_history, bot_name, bot_controller)
-
-            # Voice button below the response (only if voice is enabled)
-            if bot_has_voice and hasattr(st.session_state, 'voice_service'):
-                _display_voice_button(message, current_bot, bot_name, idx)
-
-
-async def _display_message_actions(message, idx, chat_history, bot_name, bot_controller):
-    """Display copy and regenerate buttons for a message"""
-    with st.container():
-        action_cols = st.columns([6, 1, 1])  # Message space, copy, regenerate
-
-        # Empty space to push buttons to the right
-        with action_cols[0]:
-            st.empty()
-
-        # Copy button
-        with action_cols[1]:
-            if st.button(
-                    "📋",
-                    help="Copy this message",
-                    use_container_width=True,
-                    key=f"copy_chat_{bot_name}_{idx}"  # unique key per message
-            ):
-                _handle_copy_message(message)
-
-        # Regenerate button - use direct async call instead of session state flag
-        with action_cols[2]:
-            if st.button(
-                    "🔄",
-                    key=f"regen_{bot_name}_{idx}",
-                    help="Regenerate response",
-                    use_container_width=True
-            ):
-                await _handle_regenerate_response_direct(idx, chat_history, bot_name, bot_controller)
-
-
-async def _handle_regenerate_response_direct(idx, chat_history, bot_name, bot_controller):
-    """Handle regenerate response directly without session state flags"""
-    try:
-        # Store the user message that prompted this response
-        user_message = chat_history[idx - 1][1]  # Previous message is user input
-
-        # Remove this response and all subsequent messages
-        st.session_state.chat_histories[bot_name] = chat_history[:idx]
-
-        # Clear memory of this exchange - this is crucial!
-        if 'memory' in st.session_state:
-            # Remove the last two messages from memory (user + assistant)
-            messages = st.session_state.memory['chat_history'].messages
-            if len(messages) >= 2:
-                st.session_state.memory['chat_history'].messages = messages[:-2]
-
-        # Clear audio cache for removed messages
-        keys_to_remove = [key for key in st.session_state.audio_cache if
-                          bot_name in key and int(key.split('_')[-1]) >= idx]
-        for key in keys_to_remove:
-            # Also remove the generating state if it exists
-            generating_key = f"generating_{key}"
-            if generating_key in st.session_state:
-                del st.session_state[generating_key]
-            del st.session_state.audio_cache[key]
-
-        # Clear any regeneration flags that might be hanging around
-        if hasattr(st.session_state, 'regenerate_requested'):
-            del st.session_state.regenerate_requested
-
-        # Regenerate response with fresh context
-        with st.spinner("Regenerating response..."):
-            # Generate new response - this should be different because memory was cleared
-            new_response = await bot_controller.generate_single_response(user_message)
-            st.session_state.chat_histories[bot_name].append(("assistant", new_response))
-
-        # Force immediate rerun
-        st.rerun()
-
-    except Exception as e:
-        st.error(f"Regeneration failed: {str(e)}")
-        # Ensure we clear any stuck state
-        if hasattr(st.session_state, 'regenerate_requested'):
-            del st.session_state.regenerate_requested
-
-async def _handle_regenerate_response():
-    """Handle regenerate response functionality - called from main flow"""
-    if not hasattr(st.session_state, 'regenerate_requested'):
-        return
-
-    request = st.session_state.regenerate_requested
-    bot_name = request['bot_name']
-    idx = request['message_idx']
-    chat_history = request['chat_history']
-
-    # Store the user message that prompted this response
-    user_message = chat_history[idx - 1][1]  # Previous message is user input
-
-    # Remove this response and all subsequent messages
-    st.session_state.chat_histories[bot_name] = chat_history[:idx]
-
-    # Clear memory of this exchange
-    if 'memory' in st.session_state:
-        # Remove the last two messages from memory (user + assistant)
-        messages = st.session_state.memory['chat_history'].messages
-        if len(messages) >= 2:
-            st.session_state.memory['chat_history'].messages = messages[:-2]
-
-    # Clear audio cache for removed messages
-    keys_to_remove = [key for key in st.session_state.audio_cache if bot_name in key and int(key.split('_')[-1]) >= idx]
-    for key in keys_to_remove:
-        del st.session_state.audio_cache[key]
-
-    # Regenerate response
-    with st.spinner("Regenerating response..."):
-        bot_controller = LLMChatController()  # Create new controller instance
-        new_response = await bot_controller.generate_single_response(user_message)
-        st.session_state.chat_histories[bot_name].append(("assistant", new_response))
-
-    # Clear the regeneration request
-    del st.session_state.regenerate_requested
-
-
-def _handle_copy_message(message):
-    """Handle copy message to clipboard"""
-    try:
-        pyperclip.copy(message)
-        st.toast("Message copied to clipboard!", icon="📋")
-    except Exception as e:
-        st.error(f"Failed to copy: {str(e)}")
-
-def _display_voice_button(message, current_bot, bot_name, idx):
-    """Display voice generation button and audio player with three states"""
-    try:
-        # Create a unique key for this message's audio
-        audio_key = f"audio_{bot_name}_{idx}"
-        generating_key = f"generating_{audio_key}"
-
-        # Initialize generating state if not exists
-        if generating_key not in st.session_state:
-            st.session_state[generating_key] = False
-
-        # Check if audio already exists in cache
-        audio_exists = audio_key in st.session_state.audio_cache
-        import os
-
-        if audio_exists:
-            # Verify the file actually exists
-            audio_path = st.session_state.audio_cache[audio_key]
-            if not os.path.exists(audio_path):
-                # Remove from cache if file doesn't exist
-                del st.session_state.audio_cache[audio_key]
-                audio_exists = False
-
-        # Show appropriate button based on state
-        if st.session_state[generating_key]:
-            # Currently generating - show loading icon
-            st.button("⏳", help="Generating audio...", key=f"loading_{audio_key}", disabled=True)
-        elif audio_exists:
-            # Audio exists - show play button
-            audio_path = st.session_state.audio_cache[audio_key]
-            if st.button("▶️", help="Play audio", key=f"play_{audio_key}"):
-                # The audio_player will handle playback
-                pass
-            audio_player(audio_path, autoplay=False)
-        else:
-            # Audio doesn't exist - show generate button
-            if st.button("🔊", help="Generate audio", key=f"generate_{audio_key}"):
-                # Set generating state and generate audio asynchronously
-                st.session_state[generating_key] = True
-                asyncio.create_task(_generate_audio_for_message(message, current_bot, audio_key, generating_key))
-
-    except Exception as e:
-        st.error(f"Voice button error: {str(e)}")
-
-
-async def _generate_audio_for_message(message, current_bot, audio_key, generating_key):
-    """Generate audio for a specific message and update state"""
-    try:
-        emotion = current_bot["voice"]["emotion"]
-        audio_path = st.session_state.voice_service.generate_speech(
-            message,
-            emotion,
-            dialogue_only=True
+        # Use the new message_actions component for all message actions
+        await display_message_actions(
+            role=role,
+            message=message,
+            idx=idx,
+            chat_history=chat_history,
+            bot_name=bot_name,
+            bot_controller=bot_controller,
+            bot_has_voice=bot_has_voice,
+            current_bot=current_bot
         )
-
-        if audio_path:
-            # Cache the audio path and clear generating state
-            st.session_state.audio_cache[audio_key] = audio_path
-            st.session_state[generating_key] = False
-            # Set flag to trigger rerun
-            st.session_state.audio_generated = True
-        else:
-            st.error("Failed to generate audio")
-            st.session_state[generating_key] = False
-
-    except Exception as e:
-        st.error(f"Voice generation failed: {str(e)}")
-        st.session_state[generating_key] = False
 
 
 async def _send_greeting_if_needed(chat_history, current_bot, bot_controller):
