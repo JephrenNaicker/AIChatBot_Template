@@ -9,6 +9,8 @@ from langchain.schema.runnable import RunnableSequence
 from langchain_core.exceptions import OutputParserException, LangChainException
 from langchain_community.llms import Ollama
 from config import BOTS
+import asyncio
+
 
 class LLMChatController:
     def __init__(self):
@@ -141,7 +143,6 @@ class LLMChatController:
                     template="Respond to the user: {{user_input}}"
                 ) | self.llm
             )
-
 
     def _process_memory(self, user_input: str, response: str):
         """Update conversation memory using LangGraph-style persistence"""
@@ -345,13 +346,13 @@ class LLMChatController:
             - Sounds in-character
             - Thoughts appear in italics format
             - Dialogue in "double quotes"
-            
+
             IMPORTANT: Return ONLY the enhanced greeting text itself with no additional commentary.
             Do NOT include any introductory text like "Here is the enhanced version".
-            
+
             Current greeting (improve upon this):
             {context['current_greeting']}
-            
+
             Enhanced greeting:"""
         else:
             prompt = f"""Improve and enhance this {field_name} text:
@@ -414,3 +415,167 @@ class LLMChatController:
 
         except Exception as e:
             print(f"Error clearing last exchange: {str(e)}")
+
+    # ========== NEW MESSAGE EDIT/DELETE METHODS ==========
+
+    async def edit_user_message(self, bot_name: str, message_index: int, new_content: str):
+        """Edit a user message and clear subsequent messages - ASYNC VERSION"""
+        try:
+            if bot_name not in st.session_state.chat_histories:
+                raise ValueError(f"Bot {bot_name} not found in chat histories")
+
+            chat_history = st.session_state.chat_histories[bot_name]
+
+            # Validate index
+            if message_index >= len(chat_history) or message_index < 0:
+                raise ValueError(f"Invalid message index: {message_index}")
+
+            # Ensure it's a user message
+            role, old_content = chat_history[message_index]
+            if role != "user":
+                raise ValueError("Can only edit user messages")
+
+            # Update the message content
+            chat_history[message_index] = (role, new_content)
+
+            # Clear all messages after this one (non-blocking operation)
+            messages_to_remove = len(chat_history) - (message_index + 1)
+            if messages_to_remove > 0:
+                chat_history = chat_history[:message_index + 1]
+                st.session_state.chat_histories[bot_name] = chat_history
+
+            # Clear memory for removed messages (non-blocking)
+            await self._clear_memory_after_index(message_index // 2)  # Each exchange = 2 messages (user + assistant)
+
+            # Clear audio cache for removed messages (non-blocking)
+            await self._clear_audio_cache_after_index(bot_name, message_index)
+
+            print(f"DEBUG: Edited message at index {message_index}. Remaining messages: {len(chat_history)}")
+
+        except Exception as e:
+            print(f"Error editing message: {str(e)}")
+            raise
+
+    async def delete_message(self, bot_name: str, message_index: int):
+        """Delete a message and all subsequent messages - ASYNC VERSION"""
+        try:
+            if bot_name not in st.session_state.chat_histories:
+                raise ValueError(f"Bot {bot_name} not found in chat histories")
+
+            chat_history = st.session_state.chat_histories[bot_name]
+
+            # Validate index
+            if message_index >= len(chat_history) or message_index < 0:
+                raise ValueError(f"Invalid message index: {message_index}")
+
+            # Calculate how many exchanges to remove from memory
+            # Each exchange = 2 messages (user + assistant)
+            exchanges_to_remove = (len(chat_history) - message_index + 1) // 2
+
+            # Keep messages up to the deletion point (non-blocking)
+            chat_history = chat_history[:message_index]
+            st.session_state.chat_histories[bot_name] = chat_history
+
+            # Clear memory for removed exchanges (non-blocking)
+            await self._clear_memory_after_index(len(chat_history) // 2)
+
+            # Clear audio cache for removed messages (non-blocking)
+            await self._clear_audio_cache_after_index(bot_name, message_index)
+
+            print(f"DEBUG: Deleted message at index {message_index}. Remaining messages: {len(chat_history)}")
+
+        except Exception as e:
+            print(f"Error deleting message: {str(e)}")
+            raise
+
+    async def _clear_memory_after_index(self, exchange_index: int):
+        """Clear memory starting from a specific exchange index - ASYNC VERSION"""
+        try:
+            if 'memory' not in st.session_state:
+                return
+
+            messages = st.session_state.memory['chat_history'].messages
+            if not messages:
+                return
+
+            # Each exchange = 2 messages (user + assistant)
+            messages_to_keep = exchange_index * 2
+
+            if messages_to_keep < len(messages):
+                st.session_state.memory['chat_history'].messages = messages[:messages_to_keep]
+                print(f"DEBUG: Cleared memory after exchange {exchange_index}. Remaining messages: {messages_to_keep}")
+
+            # Small async sleep to yield control (non-blocking)
+            await asyncio.sleep(0.001)
+
+        except Exception as e:
+            print(f"Error clearing memory: {str(e)}")
+
+    async def _clear_audio_cache_after_index(self, bot_name: str, message_index: int):
+        """Clear audio cache for messages after a specific index - ASYNC VERSION"""
+        try:
+            if "audio_cache" not in st.session_state:
+                return
+
+            keys_to_remove = []
+            for key in st.session_state.audio_cache:
+                if bot_name in key:
+                    # Extract index from key format: "audio_{bot_name}_{index}"
+                    try:
+                        key_index = int(key.split('_')[-1])
+                        if key_index >= message_index:
+                            keys_to_remove.append(key)
+                    except (ValueError, IndexError):
+                        continue
+
+            # Remove the keys (non-blocking batch operation)
+            for key in keys_to_remove:
+                # Also remove generating state if it exists
+                generating_key = f"generating_{key}"
+                if generating_key in st.session_state:
+                    del st.session_state[generating_key]
+                del st.session_state.audio_cache[key]
+
+            # Small async sleep to yield control (non-blocking)
+            await asyncio.sleep(0.001)
+
+            print(f"DEBUG: Cleared audio cache for {len(keys_to_remove)} messages after index {message_index}")
+
+        except Exception as e:
+            print(f"Error clearing audio cache: {str(e)}")
+
+    async def regenerate_after_edit(self, bot_name: str, user_message_index: int):
+        """Regenerate AI response after user message edit - ASYNC VERSION"""
+        try:
+            if bot_name not in st.session_state.chat_histories:
+                raise ValueError(f"Bot {bot_name} not found in chat histories")
+
+            chat_history = st.session_state.chat_histories[bot_name]
+
+            # Validate index and ensure it's a user message
+            if user_message_index >= len(chat_history) or user_message_index < 0:
+                raise ValueError(f"Invalid message index: {user_message_index}")
+
+            role, user_message = chat_history[user_message_index]
+            if role != "user":
+                raise ValueError("Can only regenerate after user messages")
+
+            # Generate new response (this is already async)
+            new_response = await self.generate_single_response(user_message)
+
+            # If there was a previous AI response after this user message, replace it
+            # Otherwise, add a new response
+            next_index = user_message_index + 1
+            if next_index < len(chat_history) and chat_history[next_index][0] == "assistant":
+                chat_history[next_index] = ("assistant", new_response)
+            else:
+                chat_history.append(("assistant", new_response))
+
+            # Update memory with the new exchange
+            self._process_memory(user_message, new_response)
+
+            return new_response
+
+        except Exception as e:
+            print(f"Error regenerating after edit: {str(e)}")
+            raise

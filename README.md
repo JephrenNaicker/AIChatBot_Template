@@ -69,6 +69,7 @@ fluffy_app/
 │   ├── audio_player.py
 │   ├── sidebar.py
 │   ├── avatar_utils.py
+│   ├── message_actions.py #chat message management links with the chat.py page
 │   └── chat_toolbar.py
 └── tests/               # Uni
 Requirements 📋
@@ -82,8 +83,8 @@ Image location thing, and the mood thing
 --Voice getting gene auto , should be gen only if user wants. and make it asyc as cant countiue the chat
 --deleting a bot is stuck
 --should be converting to mp3 for file size
---user edit message**
---regen is broken
+--user edit message ✅
+--regen is broken ✅
 
 
 1. The "Location-Based" Model (Simple & Logical)
