@@ -78,13 +78,19 @@ Python 3.8+
 
 --Key words not working
 -- add a overlay bg for the chats
-Add a scenario section:
+Add a scenario section: ✅
 Image location thing, and the mood thing 
 --Voice getting gene auto , should be gen only if user wants. and make it asyc as cant countiue the chat
---deleting a bot is stuck
---should be converting to mp3 for file size
+--deleting a bot is stuck -partly, seems if the name is the same , the user histroy comes back in the chat
+--audio needs to cleaned up. or have a lifetime est e.g 8mins from last played
 --user edit message ✅
 --regen is broken ✅
+--View page before chat
+--Login page
+--create the admin side
+--link MongoDB up
+--should be converting to mp3 for file size
+--Switch to Vue.js UI
 
 
 1. The "Location-Based" Model (Simple & Logical)

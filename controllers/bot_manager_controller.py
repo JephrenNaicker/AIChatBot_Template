@@ -33,7 +33,7 @@ class BotManager:
             return None
 
     @staticmethod
-    async def _update_bot_status(bot_name, new_status):
+    def _update_bot_status(bot_name, new_status):
         """Update a bot's status in the user_bots list"""
         for i, b in enumerate(st.session_state.user_bots):
             if b["name"] == bot_name:
@@ -43,7 +43,7 @@ class BotManager:
                 st.rerun()
 
     @staticmethod
-    async def _delete_bot(bot_name):
+    def _delete_bot(bot_name):
         """Delete a bot from the user_bots list"""
         st.session_state.user_bots = [
             b for b in st.session_state.user_bots if b["name"] != bot_name
@@ -471,15 +471,27 @@ class BotManager:
                 with action_cols[2]:
                     if bot.get('status', 'draft') == 'draft':
                         if st.button("🚀", key=f"publish_{bot['name']}_{i}", help="Publish", use_container_width=True):
-                            BotManager._update_bot_status(bot["name"], "published")
+                            # Use the async method properly
+                            st.session_state.pending_bot_action = {
+                                "type": "update_status",
+                                "bot_name": bot["name"],
+                                "new_status": "published"
+                            }
                     else:
                         if st.button("📦", key=f"unpublish_{bot['name']}_{i}", help="Unpublish",
                                      use_container_width=True):
-                            BotManager._update_bot_status(bot["name"], "draft")
+                            st.session_state.pending_bot_action = {
+                                "type": "update_status",
+                                "bot_name": bot["name"],
+                                "new_status": "draft"
+                            }
 
                 # Delete button in a separate row
                 if st.button("🗑️ Delete", key=f"delete_{bot['name']}_{i}", use_container_width=True):
-                    BotManager._delete_bot(bot["name"])
+                    st.session_state.pending_bot_action = {
+                        "type": "delete",
+                        "bot_name": bot["name"]
+                    }
 
     @staticmethod
     def fix_coroutine_avatars():
