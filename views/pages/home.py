@@ -1,14 +1,12 @@
 # views/pages/home.py
 import streamlit as st
 from config import BOTS
-from components.bot_card_home import home_bot_card
-from components.bot_card import get_bot_card_css, get_bot_card_with_hover_css
+from components.bot_card import bot_card, get_bot_card_css
 
 async def home_page():
     """Home page with view/chat only bot cards with enhanced hover"""
     # Inject CSS for bot cards with enhanced hover effects
     st.markdown(get_bot_card_css(), unsafe_allow_html=True)
-    st.markdown(get_bot_card_with_hover_css(), unsafe_allow_html=True)
 
     st.title("🤖 Chat Bot Gallery")
     search_query = st.text_input("🔍 Search bots...",
@@ -47,7 +45,7 @@ async def home_page():
         cols = st.columns(3)
         for i, bot in enumerate(filtered_default_bots):
             with cols[i % 3]:
-                home_bot_card(bot=bot, key_suffix=f"default_{i}")
+                bot_card(bot=bot, mode="home", key_suffix=f"default_{i}")
 
     # Divider and user bots section
     if filtered_user_bots:
@@ -56,7 +54,7 @@ async def home_page():
         cols = st.columns(3)
         for i, bot in enumerate(filtered_user_bots):
             with cols[i % 3]:
-                home_bot_card(bot=bot, key_suffix=f"custom_{i}")
+                bot_card(bot=bot, mode="home", key_suffix=f"custom_{i}")
 
     # Empty states
     if search_query and not filtered_default_bots and not filtered_user_bots:
