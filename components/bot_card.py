@@ -44,23 +44,21 @@ def _home_bot_card(bot, show_actions, unique_key, on_chat):
     # Get emoji
     emoji = bot.get('emoji', '🤖')
 
-    # Create the HTML content with expanding hover info
+    # Create the HTML content - put everything in ONE markdown call
     html_content = f"""
     <div class="portrait-card">
         {avatar_html}
         <div class="portrait-card-content">
             <div class="portrait-card-name">{bot['name']}</div>
             <div class="portrait-card-desc">{bot['desc'][:100]}{'...' if len(bot['desc']) > 100 else ''}</div>
+            {f'<div class="bot-tags-container"><div class="bot-tags-title">TAGS</div>{tags_html}</div>' if bot.get('tags') else ''}
         </div>
 
         <div class="bot-info-expanded">
             <div class="bot-emoji">{emoji}</div>
             <h4>{bot['name']}</h4>
-
             {f'<div class="bot-tags-container"><div class="bot-tags-title">TAGS</div>{tags_html}</div>' if bot.get('tags') else ''}
-
             <div class="bot-description">{bot['desc']}</div>
-
             <div class="bot-action-hint">
                 💬 Click "Chat" to start conversation
             </div>
@@ -68,8 +66,9 @@ def _home_bot_card(bot, show_actions, unique_key, on_chat):
     </div>
     """
 
-    # Display the card
-    st.markdown(html_content, unsafe_allow_html=True)
+    # Display the card in a container to prevent code block rendering
+    with st.container():
+        st.markdown(html_content, unsafe_allow_html=True)
 
     # Single chat button
     if show_actions and st.button("💬 Chat", key=f"chat_{unique_key}", use_container_width=True):
@@ -282,220 +281,241 @@ def _get_avatar_html(bot):
 
 
 def get_bot_card_css():
-    """Return comprehensive CSS for all bot card variants"""
+    """Return improved and responsive CSS for bot cards"""
     return """
     <style>
-        /* Base portrait card styles */
-        .portrait-card {
-            width: 200px;
-            height: 280px;
-            border-radius: 16px;
-            position: relative;
-            overflow: hidden;
-            margin: 0 auto 1rem auto;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-            background: white;
-        }
+/* --- General Bot Card Base --- */
+.portrait-card {
+    width: 200px;
+    height: 280px;
+    border-radius: 16px;
+    position: relative;
+    overflow: hidden;
+    margin: 0 auto 1rem auto;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+    background: white;
+    transition: all 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    cursor: pointer;
+}
+.portrait-card:hover {
+    height: 380px;
+    transform: translateY(-8px) scale(1.02);
+    box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+    z-index: 10;
+}
 
-        .portrait-card-content {
-            position: absolute;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            background: rgba(0,0,0,0.8);
-            color: white;
-            padding: 1rem;
-            border-bottom-left-radius: 16px;
-            border-bottom-right-radius: 16px;
-        }
+/* --- Overlay Content Before Hover --- */
+.portrait-card-content {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 40%; /* raised a bit from 30% */
+    background: linear-gradient(to top, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.8) 60%, rgba(0,0,0,0.4) 100%);
+    color: white;
+    padding: 1rem; /* slightly more padding to fit name + desc */
+    border-bottom-left-radius: 16px;
+    border-bottom-right-radius: 16px;
+    transition: all 0.4s ease;
+    backdrop-filter: blur(5px);
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+}
 
-        .portrait-card-name {
-            font-size: 1.1rem;
-            font-weight: bold;
-            margin-bottom: 0.5rem;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            color: white !important;
-        }
+/* --- Hover Overlay --- */
+.portrait-card:hover .portrait-card-content {
+    height: auto; /* grow based on content */
+    min-height: 65%; /* allow slightly smaller for fewer tags */
+    max-height: 90%; /* cap it for safety */
+    background: linear-gradient(to top, rgba(0,0,0,0.98) 0%, rgba(0,0,0,0.85) 100%);
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    gap: 0.8rem; /* natural spacing between sections */
+}
 
-        .portrait-card-desc {
-            font-size: 0.85rem;
-            opacity: 0.9;
-            height: 40px;
-            overflow: hidden;
-            display: -webkit-box;
-            -webkit-line-clamp: 2;
-            -webkit-box-orient: vertical;
-            color: white !important;
-        }
+/* Make tag container adapt naturally to content height */
+.portrait-card:hover .portrait-card-content .bot-tags-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.4rem;
+    opacity: 1;
+    transform: translateY(0);
+    margin-bottom: auto; /* pushes tags up if less content below */
+}
 
-        .status-badge {
-            position: absolute;
-            top: 10px;
-            right: 10px;
-            color: white;
-            padding: 4px 8px;
-            border-radius: 12px;
-            font-size: 0.7rem;
-            font-weight: bold;
-        }
+/* --- Bot Info (Expanded, fades in smoothly) --- */
+.bot-info-expanded {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(20,20,40,0.98) 0%, rgba(40,40,60,0.98) 100%);
+    color: white;
+    padding: 1.5rem;
+    border-radius: 16px;
+    opacity: 0;
+    transition: all 0.4s ease;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    align-items: center;
+    text-align: center;
+    transform: translateY(10px);
+    z-index: 2;
+}
+.portrait-card:hover .bot-info-expanded {
+    opacity: 1;
+    transform: translateY(0);
+}
 
-        .status-draft {
-            background: #f39c12;
-        }
+/* --- Typography --- */
+.portrait-card-name {
+    font-size: 1.2rem;
+    font-weight: 700;
+    margin-bottom: 0.4rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: white;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+}
 
-        .status-published {
-            background: #2ecc71;
-        }
+.portrait-card-desc {
+    font-size: 0.85rem;
+    opacity: 0.9;
+    line-height: 1.4;
+    display: -webkit-box;
+    -webkit-line-clamp: 2; /* show 2 lines by default */
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    color: white;
+    margin-bottom: 0.5rem;
+}
+.portrait-card:hover .portrait-card-desc {
+    -webkit-line-clamp: 3;
+}
 
-        /* Home page specific styles with hover effects */
-        .portrait-card {
-            transition: all 0.4s ease;
-            cursor: pointer;
-        }
+/* --- Bot Tags --- */
+.bot-tags-container {
+    margin-top: 0.8rem;
+    width: 100%;
+    opacity: 0;
+    transform: translateY(10px);
+    transition: all 0.3s ease 0.1s;
+}
 
-        .portrait-card:hover {
-            height: 380px;
-            transform: translateY(-10px);
-            box-shadow: 0 15px 35px rgba(0,0,0,0.3) !important;
-            z-index: 10;
-        }
+.portrait-card-content .bot-tags-container {
+    display: none;
+}
 
-        .portrait-card:hover .portrait-card-content {
-            opacity: 0;
-        }
+.portrait-card:hover .portrait-card-content .bot-tags-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    opacity: 1;
+    transform: translateY(0);
+}
 
-        .bot-info-expanded {
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: linear-gradient(135deg, rgba(20,20,40,0.98) 0%, rgba(40,40,60,0.98) 100%);
-            color: white;
-            padding: 1.5rem;
-            border-radius: 16px;
-            opacity: 0;
-            transition: opacity 0.3s ease;
-            display: flex;
-            flex-direction: column;
-            justify-content: flex-start;
-            align-items: center;
-            text-align: center;
-            overflow-y: auto;
-            transform: translateY(20px);
-        }
+.bot-tags-title {
+    font-size: 0.75rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+    opacity: 0.8;
+    color: #a0a0ff;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
 
-        .portrait-card:hover .bot-info-expanded {
-            opacity: 1;
-            transform: translateY(0);
-        }
+.bot-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+    justify-content: center;
+}
 
-        .bot-info-expanded h4 {
-            margin: 0 0 1rem 0;
-            font-size: 1.3rem;
-            font-weight: bold;
-            color: #fff;
-            text-shadow: 0 2px 4px rgba(0,0,0,0.5);
-        }
+.bot-tag {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 0.25rem 0.6rem;
+    border-radius: 12px;
+    font-size: 0.7rem;
+    font-weight: 500;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
 
-        .bot-info-expanded .bot-description {
-            margin: 0 0 1rem 0;
-            font-size: 0.9rem;
-            line-height: 1.4;
-            opacity: 0.9;
-        }
+/* --- Emoji + Action hint --- */
+.bot-emoji {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+    text-shadow: 0 4px 8px rgba(0,0,0,0.3);
+    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
+}
 
-        .bot-tags-container {
-            margin: 0.5rem 0 1rem 0;
-            width: 100%;
-        }
+.bot-action-hint {
+    margin-top: auto;
+    padding: 0.8rem;
+    background: rgba(255,255,255,0.15);
+    border-radius: 10px;
+    font-size: 0.8rem;
+    opacity: 0.9;
+    border: 1px solid rgba(255,255,255,0.2);
+    width: 100%;
+    box-sizing: border-box;
+    backdrop-filter: blur(10px);
+}
 
-        .bot-tags-title {
-            font-size: 0.8rem;
-            font-weight: bold;
-            margin-bottom: 0.5rem;
-            opacity: 0.8;
-            color: #a0a0ff;
-        }
+/* --- Description in expanded view --- */
+.bot-description {
+    margin: 0 0 1rem 0;
+    font-size: 0.9rem;
+    line-height: 1.4;
+    opacity: 0.9;
+    flex-grow: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
 
-        .bot-tags {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 0.4rem;
-            justify-content: center;
-        }
+/* Default (non-hover): keep visible */
+.portrait-card-content .portrait-card-desc {
+    opacity: 1;
+    transform: translateY(0);
+    transition: all 0.4s ease;
+}
 
-        .bot-tag {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 0.3rem 0.8rem;
-            border-radius: 1rem;
-            font-size: 0.75rem;
-            font-weight: 500;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-        }
+/* Only hide emoji and tags by default */
+.portrait-card-content .bot-emoji,
+.portrait-card-content .bot-tags-container {
+    opacity: 0;
+    transform: translateY(15px);
+    transition: all 0.4s ease;
+}
 
-        .bot-emoji {
-            font-size: 2.5rem;
-            margin-bottom: 0.8rem;
-            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
-        }
+/* On hover: fade in + slide together */
+.portrait-card:hover .portrait-card-content .bot-emoji,
+.portrait-card:hover .portrait-card-content .bot-tags-container {
+    opacity: 1;
+    transform: translateY(0);
+}
 
-        .bot-action-hint {
-            margin-top: auto;
-            padding: 0.8rem;
-            background: rgba(255,255,255,0.15);
-            border-radius: 10px;
-            font-size: 0.8rem;
-            opacity: 0.9;
-            border: 1px solid rgba(255,255,255,0.2);
-            width: 100%;
-            box-sizing: border-box;
-        }
+/* Smooth transition for description expansion */
+.portrait-card:hover .portrait-card-content .portrait-card-desc {
+    -webkit-line-clamp: 3;
+    transition: all 0.4s ease;
+}
 
-        /* Scrollbar styling */
-        .bot-info-expanded::-webkit-scrollbar {
-            width: 4px;
-        }
+/* Slight stagger for natural timing */
+.portrait-card:hover .portrait-card-content .bot-emoji {
+    transition-delay: 0.05s;
+}
+.portrait-card:hover .portrait-card-content .portrait-card-desc {
+    transition-delay: 0.1s;
+}
+.portrait-card:hover .portrait-card-content .bot-tags-container {
+    transition-delay: 0.15s;
+}
 
-        .bot-info-expanded::-webkit-scrollbar-track {
-            background: rgba(255,255,255,0.1);
-            border-radius: 2px;
-        }
-
-        .bot-info-expanded::-webkit-scrollbar-thumb {
-            background: rgba(255,255,255,0.3);
-            border-radius: 2px;
-        }
-
-        .bot-info-expanded::-webkit-scrollbar-thumb:hover {
-            background: rgba(255,255,255,0.5);
-        }
-
-        /* Grid layout helpers */
-        .full-width-grid {
-            width: 100%;
-            max-width: 1200px;
-            margin: 0 auto;
-        }
-
-        .bot-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-            gap: 1.5rem;
-            margin: 2rem 0;
-        }
-
-        /* Ensure cards don't overlap when expanded */
-        .stColumn {
-            position: relative;
-            z-index: 1;
-        }
-
-        .stColumn:hover {
-            z-index: 10;
-        }
     </style>
     """

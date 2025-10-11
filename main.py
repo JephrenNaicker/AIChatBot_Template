@@ -90,30 +90,28 @@ def initialize_session_state():
 def apply_global_styles():
     """Apply global CSS styles including bot card styles"""
     # Load bot card CSS
-    bot_card_css = get_bot_card_css()
+    bot_card_css = get_bot_card_css().strip()  # remove leading/trailing whitespace
 
-    # Add FOUC prevention
+    # FOUC prevention script (minimized — no indentation or newlines)
     fouc_prevention = """
-    <script>
-    // Prevent FOUC (Flash of Unstyled Content)
-    document.addEventListener('DOMContentLoaded', function() {
-        // Hide elements initially
-        const style = document.createElement('style');
-        style.textContent = '.portrait-card, .portrait-card-content, .portrait-card-name, .portrait-card-desc { visibility: hidden; }';
-        document.head.appendChild(style);
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const style = document.createElement('style');
+  style.textContent = '.portrait-card, .portrait-card-content, .portrait-card-name, .portrait-card-desc { visibility: hidden; }';
+  document.head.appendChild(style);
+  setTimeout(function() {
+    document.querySelectorAll('.portrait-card, .portrait-card-content, .portrait-card-name, .portrait-card-desc')
+      .forEach(el => el.style.visibility = 'visible');
+  }, 100);
+});
+</script>
+""".strip()
 
-        // Show elements after a short delay to ensure CSS is loaded
-        setTimeout(function() {
-            const elements = document.querySelectorAll('.portrait-card, .portrait-card-content, .portrait-card-name, .portrait-card-desc');
-            elements.forEach(el => {
-                el.style.visibility = 'visible';
-            });
-        }, 100);
-    });
-    </script>
-    """
+    # Combine safely
+    html_block = f"<style>{bot_card_css}</style>{fouc_prevention}"
 
-    st.markdown(bot_card_css + fouc_prevention, unsafe_allow_html=True)
+    # Inject into page
+    st.markdown(html_block, unsafe_allow_html=True)
 
 
 async def main():
