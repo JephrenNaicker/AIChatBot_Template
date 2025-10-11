@@ -1,8 +1,7 @@
 # views/pages/my_bots.py
 import streamlit as st
 from controllers.bot_manager_controller import BotManager
-from components.bot_card_manage import manage_bot_card
-from components.bot_card import get_bot_card_css
+from components.bot_card import bot_card, get_bot_card_css
 
 
 async def my_bots_page():
@@ -38,7 +37,7 @@ async def my_bots_page():
     cols = st.columns(2)
     for i, bot in enumerate(filtered_bots):
         with cols[i % 2]:
-            manage_bot_card(bot=bot, key_suffix=str(i))
+            bot_card(bot=bot, mode="manage", key_suffix=str(i))
 
     if st.button("➕ Create Another Bot"):
         st.session_state.page = "bot_setup"

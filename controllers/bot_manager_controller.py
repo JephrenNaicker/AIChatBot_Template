@@ -1,7 +1,7 @@
 import streamlit as st
 from config import TAG_OPTIONS, PERSONALITY_TRAITS,DEFAULT_RULES,BOT_PRESETS
 from PIL import Image
-from components.bot_card_manage import manage_bot_card
+from components.bot_card import bot_card
 
 class BotManager:
 
@@ -451,8 +451,8 @@ class BotManager:
 
         for i, bot in enumerate(bots):
             with cols[i % 2]:
-                # Use the management bot card component instead of the old bot_card
-                manage_bot_card(bot=bot, key_suffix=str(i))
+                # Use the unified bot_card component with manage mode
+                bot_card(bot=bot, mode="manage", key_suffix=str(i))
 
                 # Additional actions specific to my_bots page
                 action_cols = st.columns([1, 1, 1])
