@@ -64,8 +64,6 @@ fluffy_app/
 │   └── group_chat.py
 ├── components/      # Reusable components
 │   ├── bot_card.py  #functionality and CSS for all bot cards
-│   ├── bot_card_home.py   # main gallery page
-│   ├── bot_card_manage.py #"My Bots" management page
 │   ├── audio_player.py
 │   ├── sidebar.py
 │   ├── avatar_utils.py
@@ -83,6 +81,9 @@ Image location thing, and the mood thing
 --Voice getting gene auto , should be gen only if user wants. and make it asyc as cant countiue the chat
 --deleting a bot is stuck -partly, seems if the name is the same , the user histroy comes back in the chat
 --audio needs to cleaned up. or have a lifetime est e.g 8mins from last played
+--update home filter by tags and news bots
+--wasited space layout needs to change, the chat page closer to the side bar and have another page on the rightside space
+--have the chat now with in the bot card , but st might  not be enable to do that, also add counter top coner of conv
 --user edit message ✅
 --regen is broken ✅
 --View page before chat
