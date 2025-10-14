@@ -111,6 +111,9 @@ async def _render_appearance_section(form_data, bot):
             key="appearance_text_widget"
         )
 
+    if st.session_state.appearance_text_widget != st.session_state.appearance_text:
+        st.session_state.appearance_text = st.session_state.appearance_text_widget
+
     with enhance_col:
         if st.button("✨", key="enhance_appearance", help="Enhance description with AI"):
             with st.spinner("Enhancing description..."):
@@ -190,6 +193,9 @@ async def _render_background_section(form_data, bot):
             key="desc_text_widget"
         )
 
+    if st.session_state.desc_text_widget != st.session_state.desc_text:
+        st.session_state.desc_text = st.session_state.desc_text_widget
+
     with enhance_col:
         if st.button("✨", key="enhance_desc", help="Enhance description with AI"):
             with st.spinner("Enhancing description..."):
@@ -254,6 +260,10 @@ async def _render_greeting_section(form_data, bot):
             max_chars=GREETING_LIMIT,
             key="greeting_text_widget"
         )
+
+        if st.session_state.greeting_text_widget != st.session_state.greeting_text:
+            st.session_state.greeting_text = st.session_state.greeting_text_widget
+
         # Display character count for greeting
         greeting_count = len(greeting_text)
         st.markdown(f'<div class="char-count">{greeting_count}/{GREETING_LIMIT} characters</div>',
