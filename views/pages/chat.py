@@ -161,6 +161,58 @@ def _apply_chat_styles():
     .stButton button[title^="Play audio"]:hover {{
         background-color: rgba(255, 215, 0, 0.3) !important;
     }}
+
+    /* NEW: Style for text in double quotes in bot messages */
+    .stChatMessage[data-testid="stChatMessage"]:nth-child(even) .stMarkdown p:has(> span[style*="color:"]),
+    .stChatMessage[data-testid="stChatMessage"]:nth-child(even) .stMarkdown p:contains('"') {{
+        /* This targets paragraphs containing quotes in bot messages */
+    }}
+
+    /* Style for quoted text specifically */
+    .stChatMessage[data-testid="stChatMessage"]:nth-child(even) .stMarkdown p {{
+        position: relative;
+    }}
+
+    /* Color for text within double quotes in bot messages */
+    .stChatMessage[data-testid="stChatMessage"]:nth-child(even) .stMarkdown p:has(> span[style*="color:"]) {{
+        color: #FFD700 !important; /* Gold color for quoted text */
+    }}
+
+    /* Alternative approach: target specific quote patterns */
+    .stChatMessage[data-testid="stChatMessage"]:nth-child(even) .stMarkdown p:contains('"') {{
+        color: #FFD700 !important;
+    }}
+
+    /* More specific targeting for quoted dialogue */
+    .stChatMessage[data-testid="stChatMessage"]:nth-child(even) .stMarkdown p {{
+        color: white !important; /* Default text color */
+    }}
+
+    .stChatMessage[data-testid="stChatMessage"]:nth-child(even) .stMarkdown p:has(> span) {{
+        color: inherit !important;
+    }}
+
+    /* Direct styling for spans that might contain quoted text */
+    .stChatMessage[data-testid="stChatMessage"]:nth-child(even) .stMarkdown span {{
+        color: #FFD700 !important; /* Gold for spans in bot messages */
+    }}
+
+    /* Even more specific: target text between quotes using CSS attribute selectors */
+    .stChatMessage[data-testid="stChatMessage"]:nth-child(even) .stMarkdown p:not(:has(> span)) {{
+        /* This will handle plain text quotes */
+        color: white !important;
+    }}
+
+    /* Special class for quoted text - we'll add this via JavaScript or markdown */
+    .quoted-text {{
+        color: #FFD700 !important;
+        font-style: italic;
+    }}
+
+    /* Target specific quote patterns in bot messages */
+    .stChatMessage[data-testid="stChatMessage"]:nth-child(even) .stMarkdown p:contains('"') {{
+        color: #FFD700 !important;
+    }}
     </style>
     """, unsafe_allow_html=True)
 
@@ -227,8 +279,23 @@ async def _display_single_message(role, message, idx, chat_history, current_bot,
     if role == "assistant":
         avatar = get_avatar_display(current_bot, size=40)
 
+    # Process message to style quoted text (for bot messages only)
+    display_message = message
+    if role == "assistant":
+        # Wrap text in double quotes with gold color
+        import re
+        display_message = re.sub(
+            r'"(.*?)"',
+            r'<span style="color: #6ded82; font-style: italic;">"\1"</span>',
+            message
+        )
+
     with st.chat_message(role, avatar=avatar if role == "assistant" else None):
-        st.write(message)
+        if role == "assistant" and '"' in message:
+            # Use markdown for styled text
+            st.markdown(display_message, unsafe_allow_html=True)
+        else:
+            st.write(message)
 
         # Use the new message_actions component for all message actions
         await display_message_actions(
