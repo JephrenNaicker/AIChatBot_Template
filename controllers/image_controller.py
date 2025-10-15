@@ -1,3 +1,4 @@
+# controllers/image_controller.py (enhanced)
 import requests
 import io
 from PIL import Image
@@ -53,3 +54,22 @@ class ImageController:
                 return None, f"API Error: {response.status_code}"
         except Exception as e:
             return None, f"Connection Error: {str(e)}"
+
+    def generate_avatar(self, character_name, appearance_desc, style="anime style"):
+        """Generate avatar specifically for character with optimized settings"""
+        # Optimized prompt for avatar generation
+        prompt = f"headshot portrait of {character_name}, {appearance_desc}, {style}, beautiful detailed eyes, face focus, cute, masterpiece, best quality"
+
+        # Negative prompt to avoid common issues
+        negative_prompt = "ugly, duplicate, morbid, mutilated, extra fingers, mutated hands, poorly drawn hands, poorly drawn face, deformed, blurry, bad anatomy, bad proportions, extra limbs, cloned face, disfigured, gross proportions, malformed limbs, missing arms, missing legs, extra arms, extra legs, fused fingers, too many fingers, long neck"
+
+        # Avatar-optimized settings
+        return self.generate_image(
+            prompt=prompt,
+            negative_prompt=negative_prompt,
+            steps=25,
+            cfg_scale=7,
+            width=512,  # Good size for avatars
+            height=512,
+            sampler="DPM++ 2M Karras"  # Good for portraits
+        )
