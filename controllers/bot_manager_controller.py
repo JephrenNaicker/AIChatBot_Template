@@ -1,9 +1,40 @@
 import streamlit as st
+from typing import List
 from config import TAG_OPTIONS, PERSONALITY_TRAITS,DEFAULT_RULES,BOT_PRESETS
+from models.bot import Bot
 from PIL import Image
 from components.bot_card import bot_card
 
 class BotManager:
+
+    @staticmethod
+    def initialize_user_bots() -> List[Bot]:
+        """Initialize user bots with default bots if not exists"""
+        if 'user_bots' not in st.session_state or st.session_state.user_bots is None:
+            from config import DEFAULT_BOTS
+            # Start with default bots
+            st.session_state.user_bots = DEFAULT_BOTS
+        return st.session_state.user_bots
+
+    @staticmethod
+    def get_user_bots() -> List[Bot]:
+        """Get user bots as Bot objects"""
+        # Initialize if not exists
+        bots = BotManager.initialize_user_bots()
+
+        # Convert dicts to Bot objects if needed
+        if bots and isinstance(bots[0], dict):
+            # Migrate from dict to Bot objects
+            st.session_state.user_bots = [Bot.from_dict(bot_data) for bot_data in bots]
+            return st.session_state.user_bots
+
+        # Ensure we always return a list, even if empty
+        return bots or []
+
+    @staticmethod
+    def save_user_bots(bots: List[Bot]):
+        """Save Bot objects to session state"""
+        st.session_state.user_bots = bots
 
     @staticmethod
     def _fix_coroutine_avatars():
@@ -16,7 +47,6 @@ class BotManager:
                 # Make sure the bot has an emoji
                 if "emoji" not in bot or not bot["emoji"]:
                     bot["emoji"] = "🤖"
-
 
     @staticmethod
     async def _handle_uploaded_file(uploaded_file, bot_name):

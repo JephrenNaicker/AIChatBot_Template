@@ -42,7 +42,8 @@ fluffy_app/
 │   ├── __init__.py
 │   ├── chat_controller.py          
 │   ├── bot_manager_controller.py  
-│   ├── group_chat_controller.py 
+│   ├── group_chat_controller.py
+│   ├── image_controller.py
 │   └── voice_controller.py
 ├── services/            # Utility classes
 │   ├── __init__.py
@@ -58,6 +59,7 @@ fluffy_app/
 │   ├── create_bot.py
 │   ├── edit_bot.py
 │   ├── generate_concept.py
+│   ├── image_studio.py
 │   ├── my_bots.py
 │   ├── profile.py
 │   ├── voice.py
