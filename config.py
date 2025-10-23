@@ -99,6 +99,8 @@ DEFAULT_BOTS = [
 def get_default_bots_dicts():
     return [bot.to_dict() for bot in DEFAULT_BOTS]
 
+BOTS = get_default_bots_dicts()
+
 PERSONALITY_TRAITS = [
     "Creative", "Logical", "Adventurous", "Cautious",
     "Empathetic", "Optimistic", "Pessimistic",

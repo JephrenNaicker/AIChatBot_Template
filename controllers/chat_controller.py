@@ -8,7 +8,7 @@ from langchain.prompts import PromptTemplate
 from langchain.schema.runnable import RunnableSequence
 from langchain_core.exceptions import OutputParserException, LangChainException
 from langchain_community.llms import Ollama
-from config import BOTS
+from config import get_default_bots_dicts
 import asyncio
 
 
@@ -44,7 +44,7 @@ class LLMChatController:
         bot_name = st.session_state.get('selected_bot', '')
 
         # Combine default bots and user bots
-        all_bots = BOTS + st.session_state.user_bots
+        all_bots = get_default_bots_dicts() + st.session_state.user_bots
         current_bot = next((b for b in all_bots if b["name"] == bot_name), None)
 
         if current_bot:
@@ -296,7 +296,7 @@ class LLMChatController:
             scenario_context = ""
 
             # Combine default bots and user bots
-            all_bots = BOTS + st.session_state.user_bots
+            all_bots = get_default_bots_dicts() + st.session_state.user_bots
             current_bot = next((b for b in all_bots if b["name"] == bot_name), None)
 
             if current_bot:
