@@ -1,8 +1,7 @@
 import streamlit as st
 from config import PAGES
 from components.avatar_utils import get_avatar_display
-from config import DEFAULT_BOTS
-from models.bot import Bot
+from config import BOTS
 
 
 def get_sidebar_css():
@@ -167,7 +166,6 @@ async def create_sidebar():
         await _display_chat_list()
 
 
-# Update the _display_chat_list function:
 async def _display_chat_list():
     """Private method to display chat history list"""
     st.subheader("💬 Your Chats")
@@ -179,50 +177,31 @@ async def _display_chat_list():
         st.markdown('<div class="empty-chats">No chats yet<br>Start a conversation!</div>', unsafe_allow_html=True)
         return
 
-    # Get all bots - user bots (dicts) + default bots (Bot objects)
-    user_bots = st.session_state.get('user_bots', [])
-    all_bots = DEFAULT_BOTS + user_bots  # This mixes Bot objects and dicts
-
     for bot_name in list(st.session_state.chat_histories.keys()):
-        # Find the bot by name - handle both Bot objects and dictionaries
-        bot = None
-        for b in all_bots:
-            # Check if it's a Bot object or dictionary
-            if hasattr(b, 'name'):  # Bot object
-                if b.name == bot_name:
-                    bot = b
-                    break
-            elif isinstance(b, dict) and b.get('name') == bot_name:  # Dictionary
-                bot = b
-                break
+        # Find the bot in either default bots (from config) or user bots
+        all_bots = BOTS + st.session_state.user_bots
+        bot = next((b for b in all_bots if b['name'] == bot_name), None)
 
         if not bot:
             continue
 
-        # Get avatar for display - handle both Bot objects and dictionaries
-        if hasattr(bot, 'get_avatar_display'):  # Bot object
-            avatar = bot.get_avatar_display()
-            display_name = bot.name
-        else:  # Dictionary
-            # For dictionaries, use the emoji field or default to 🤖
-            avatar = bot.get('emoji', '🤖')
-            display_name = bot.get('name', 'Unknown Bot')
-
+        # Get avatar for display
+        avatar = get_avatar_display(bot, size=32)
         is_active = st.session_state.get('selected_bot') == bot_name and st.session_state.get('page') == 'chat'
 
         # Create a single row with proper spacing
         col1, col2, col3 = st.columns([1, 4, 1])
 
         with col1:
-            # Display avatar - handle both emoji and image
-            if isinstance(avatar, str) and len(avatar) <= 3:  # Emoji
+            # Display avatar
+            if isinstance(avatar, str):  # Emoji
                 st.write(avatar)
-            else:  # Image or complex string
+            else:  # Image
                 st.image(avatar, width=32)
 
         with col2:
             # Chat selection button - full width
-            button_label = f"**{display_name}**" if is_active else display_name
+            button_label = f"**{bot_name}**" if is_active else bot_name
             if st.button(button_label, key=f"select_{bot_name}", use_container_width=True):
                 st.session_state.selected_bot = bot_name
                 st.session_state.page = "chat"
@@ -230,7 +209,7 @@ async def _display_chat_list():
 
         with col3:
             # Delete button with icon
-            if st.button("🗑️", key=f"delete_{bot_name}", help=f"Delete chat with {display_name}"):
+            if st.button("🗑️", key=f"delete_{bot_name}", help=f"Delete chat with {bot_name}"):
                 if st.session_state.get('selected_bot') == bot_name:
                     st.session_state.selected_bot = None
                     st.session_state.page = "home"
