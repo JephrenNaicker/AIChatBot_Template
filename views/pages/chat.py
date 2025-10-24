@@ -3,7 +3,7 @@ import streamlit as st
 from components.avatar_utils import get_avatar_display
 from components.chat_toolbar import display_chat_toolbar
 from components.message_actions import display_message_actions, display_message_edit_interface, handle_pending_edit
-from config import get_default_bots_dicts
+from config import BOTS
 from controllers.chat_controller import LLMChatController
 
 
@@ -220,7 +220,7 @@ def _apply_chat_styles():
 def _get_bot_details(bot_name):
     """Get the bot's details from session state"""
     # Check default bots (from config)
-    default_bot = next((b for b in get_default_bots_dicts() if b["name"] == bot_name), None)
+    default_bot = next((b for b in BOTS if b["name"] == bot_name), None)
     if default_bot:
         return default_bot
 
