@@ -3,7 +3,6 @@ import streamlit as st
 from config import TAG_OPTIONS, PERSONALITY_TRAITS, DEFAULT_RULES
 from controllers.bot_manager_controller import BotManager
 from controllers.chat_controller import LLMChatController
-from controllers.image_controller import ImageController
 
 # Character limits
 NAME_LIMIT = 80
@@ -39,8 +38,8 @@ def _render_avatar_section(form_data):
     st.write("**Avatar:**")
     avatar_option = st.radio(
         "Avatar Type",
-        ["Generate with AI", "Emoji", "Upload Image"],
-        index=0 if st.session_state.get('generated_avatar') else 1,
+        ["Emoji", "Upload Image"],
+        index=0,
         horizontal=True,
         key="avatar_option"
     )
@@ -66,19 +65,8 @@ def _render_avatar_section(form_data):
             # No file uploaded, fall back to emoji
             form_data["appearance"]["uploaded_file"] = None
             st.write(f"Preview: {form_data['basic']['emoji']}")
-
-    elif avatar_option == "Generate with AI":
-        if st.session_state.get('generated_avatar'):
-            st.image(st.session_state.generated_avatar, width=100, caption="AI Generated Avatar")
-            form_data["appearance"]["generated_avatar"] = st.session_state.generated_avatar
-            form_data["appearance"]["uploaded_file"] = None
-            form_data["appearance"]["avatar_emoji"] = None
-        else:
-            st.info("👆 Generate an avatar in the Appearance section above!")
-            form_data["appearance"]["uploaded_file"] = None
-            form_data["appearance"]["avatar_emoji"] = form_data["basic"]["emoji"]
-
-    else:  # Emoji selected
+    else:
+        # Emoji selected
         form_data["appearance"]["uploaded_file"] = None
         form_data["appearance"]["avatar_emoji"] = form_data["basic"]["emoji"]
         st.write(f"Preview: {form_data['basic']['emoji']}")
@@ -86,14 +74,10 @@ def _render_avatar_section(form_data):
     return form_data
 
 
-# In create_bot.py - update the _render_appearance_section function
 async def _render_appearance_section(form_data):
-    """Render the appearance section with avatar generation"""
+    """Render the appearance section"""
     st.subheader("👀 Physical Appearance")
-
-    # Create two columns for layout
-    appearance_col, enhance_col = st.columns([0.8, 0.2])
-
+    appearance_col, enhance_col = st.columns([0.9, 0.1])
     with appearance_col:
         st.markdown('<div class="text-area-container">', unsafe_allow_html=True)
         appearance_text = st.text_area(
@@ -105,10 +89,8 @@ async def _render_appearance_section(form_data):
             max_chars=APPEARANCE_LIMIT,
             key="appearance_text_widget"
         )
-        st.markdown('</div>', unsafe_allow_html=True)
 
     with enhance_col:
-        # Enhanced description button
         if st.button("✨", key="enhance_appearance", help="Enhance description with AI"):
             with st.spinner("Enhancing description..."):
                 chat_controller = LLMChatController()
@@ -121,91 +103,6 @@ async def _render_appearance_section(form_data):
                 st.rerun()
 
     form_data["appearance"]["description"] = st.session_state.get("appearance_text", appearance_text)
-
-    # Avatar Generation Section
-    if form_data["appearance"]["description"] and form_data["basic"]["name"]:
-        await _render_avatar_generation(form_data)
-
-    return form_data
-
-
-async def _render_avatar_generation(form_data):
-    """Render the avatar generation section"""
-    st.markdown("---")
-    st.write("**🎨 Generate Avatar**")
-
-    # Check if we already have a generated avatar
-    generated_avatar = st.session_state.get('generated_avatar', None)
-
-    if generated_avatar:
-        # Display the generated avatar
-        col1, col2 = st.columns([1, 3])
-        with col1:
-            st.image(generated_avatar, width=150, caption="Generated Avatar")
-        with col2:
-            if st.button("🔄 Regenerate Avatar", key="regenerate_avatar"):
-                # Clear the current avatar to trigger regeneration
-                del st.session_state.generated_avatar
-                st.rerun()
-
-            if st.button("✅ Use This Avatar", key="use_avatar", type="primary"):
-                # Store the avatar in form data
-                form_data["appearance"]["generated_avatar"] = generated_avatar
-                form_data["appearance"]["avatar_type"] = "generated"
-                st.success("Avatar selected!")
-    else:
-        # Show generation options
-        col1, col2, col3 = st.columns([2, 1, 1])
-
-        with col1:
-            style = st.selectbox(
-                "Art Style",
-                ["Anime", "Realistic", "Digital Art", "Painting", "Fantasy"],
-                key="avatar_style"
-            )
-
-        with col2:
-            if st.button("🖼️ Generate Avatar", key="generate_avatar", type="primary"):
-                if form_data["basic"]["name"] and form_data["appearance"]["description"]:
-                    with st.spinner("Generating avatar... This may take 10-20 seconds"):
-                        try:
-                            image_controller = ImageController()
-
-                            # Map style to prompt additions
-                            style_map = {
-                                "Anime": "anime style, vibrant colors, detailed eyes",
-                                "Realistic": "photorealistic, detailed face, natural lighting",
-                                "Digital Art": "digital painting, concept art, sharp details",
-                                "Painting": "oil painting, artistic, brush strokes",
-                                "Fantasy": "fantasy art, magical, ethereal"
-                            }
-
-                            style_prompt = style_map.get(style, "anime style")
-
-                            avatar_image, error = image_controller.generate_avatar(
-                                character_name=form_data["basic"]["name"],
-                                appearance_desc=form_data["appearance"]["description"],
-                                style=style_prompt
-                            )
-
-                            if avatar_image and not error:
-                                # Store in session state
-                                st.session_state.generated_avatar = avatar_image
-                                st.rerun()
-                            else:
-                                st.error(f"Failed to generate avatar: {error}")
-
-                        except Exception as e:
-                            st.error(f"Error generating avatar: {str(e)}")
-                else:
-                    st.warning("Please enter character name and appearance description first")
-
-        with col3:
-            if st.button("🔄 Clear", key="clear_avatar"):
-                if 'generated_avatar' in st.session_state:
-                    del st.session_state.generated_avatar
-                st.rerun()
-
     return form_data
 
 async def _render_background_section(form_data):
