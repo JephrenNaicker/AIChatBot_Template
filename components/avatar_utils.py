@@ -59,17 +59,52 @@ def get_bot_avatar(bot, size=40):
         return ("emoji", emoji)
 
 
-def get_avatar_display(bot, size=40):
-    """
-    Get avatar ready for display in Streamlit components
-    Returns: Either image bytes or emoji string
-    """
-    avatar_type, avatar_content = get_bot_avatar(bot, size)
+# components/avatar_utils.py
 
-    if avatar_type == "image":
-        return avatar_content
-    else:
-        return avatar_content
+import streamlit as st
+import os
+from PIL import Image
+
+
+def get_avatar_display(bot, size=40):
+    """Get avatar display for a Bot object only"""
+    try:
+        # Only handle Bot objects - no legacy dictionary support
+        if not hasattr(bot, 'appearance'):
+            return bot.emoji if hasattr(bot, 'emoji') else '🤖'
+
+        appearance = bot.appearance
+        avatar_type = appearance.get('avatar_type', 'emoji')
+        avatar_data = appearance.get('avatar_data')
+
+        if avatar_type == 'emoji':
+            return bot.emoji if hasattr(bot, 'emoji') else '🤖'
+
+        elif avatar_type == 'uploaded' and avatar_data:
+            # Handle dictionary avatar data from uploaded files
+            if isinstance(avatar_data, dict):
+                filepath = avatar_data.get('filepath')
+                if filepath and os.path.exists(filepath):
+                    try:
+                        image = Image.open(filepath)
+                        # Resize image to requested size for consistency
+                        image.thumbnail((size, size), Image.Resampling.LANCZOS)
+                        return image
+                    except Exception as e:
+                        print(f"Error loading avatar image from {filepath}: {str(e)}")
+                        # Fall back to emoji
+                        return bot.emoji if hasattr(bot, 'emoji') else '🤖'
+
+            # If we get here, avatar_data exists but is invalid
+            return bot.emoji if hasattr(bot, 'emoji') else '🤖'
+
+        else:
+            # Default case - use emoji
+            return bot.emoji if hasattr(bot, 'emoji') else '🤖'
+
+    except Exception as e:
+        print(f"Error in get_avatar_display: {str(e)}")
+        return '🤖'  # Default emoji fallback
 
 
 def get_avatar_type(bot):

@@ -19,17 +19,17 @@ async def home_page():
     default_bots = get_default_bots()
 
     # Prepare user bots (only published ones for home page)
-    # Convert to Bot objects if needed and filter published
+    # Ensure we're working with Bot objects
     user_bots = []
     for bot in st.session_state.user_bots:
-        # Ensure we're working with Bot objects
-        bot_obj = bot if hasattr(bot, 'name') else None
-        if not bot_obj and isinstance(bot, dict):
+        # If it's a dictionary, convert to Bot object
+        if isinstance(bot, dict):
             from models.bot import Bot
             bot_obj = Bot.from_dict(bot)
-
-        if bot_obj and bot_obj.is_published():
             user_bots.append(bot_obj)
+        elif hasattr(bot, 'name'):
+            if bot.is_published():
+                user_bots.append(bot)
 
     # Filter bots using Bot object attributes
     filtered_default_bots = [
@@ -48,15 +48,14 @@ async def home_page():
             any(search_query.lower() in tag.lower() for tag in bot.tags))
     ]
 
-    # Display default bots section
+    # Display default bots section - PASS BOT OBJECTS DIRECTLY
     if filtered_default_bots:
         st.subheader("🌟 Default Bots")
         cols = st.columns(3)
         for i, bot in enumerate(filtered_default_bots):
             with cols[i % 3]:
-                # Convert Bot object to dict for bot_card component
-                bot_dict = _bot_to_dict(bot)
-                bot_card(bot=bot_dict, mode="home", key_suffix=f"default_{i}")
+                # PASS BOT OBJECT DIRECTLY - NO CONVERSION NEEDED
+                bot_card(bot=bot, mode="home", key_suffix=f"default_{i}")
 
     # Divider and user bots section
     if filtered_user_bots:
@@ -65,9 +64,8 @@ async def home_page():
         cols = st.columns(3)
         for i, bot in enumerate(filtered_user_bots):
             with cols[i % 3]:
-                # Convert Bot object to dict for bot_card component
-                bot_dict = _bot_to_dict(bot)
-                bot_card(bot=bot_dict, mode="home", key_suffix=f"custom_{i}")
+                # PASS BOT OBJECT DIRECTLY - NO CONVERSION NEEDED
+                bot_card(bot=bot, mode="home", key_suffix=f"custom_{i}")
 
     # Empty states
     if search_query and not filtered_default_bots and not filtered_user_bots:

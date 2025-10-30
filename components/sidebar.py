@@ -181,12 +181,10 @@ async def _display_chat_list():
         # Find the bot in either default bots (from config) or user bots
         all_bots = get_default_bots() + st.session_state.user_bots
 
-        # Helper function to safely get bot name from either object or dict
+        # Helper function to safely get bot name from Bot object
         def _get_bot_name(bot):
             if hasattr(bot, 'name'):
                 return bot.name
-            elif isinstance(bot, dict):
-                return bot.get('name', '')
             return ''
 
         bot = next((b for b in all_bots if _get_bot_name(b) == bot_name), None)
@@ -194,7 +192,7 @@ async def _display_chat_list():
         if not bot:
             continue
 
-        # Get avatar for display
+        # Get avatar for display - FIXED: Handle None return value
         avatar = get_avatar_display(bot, size=32)
         is_active = st.session_state.get('selected_bot') == bot_name and st.session_state.get('page') == 'chat'
 
@@ -202,11 +200,21 @@ async def _display_chat_list():
         col1, col2, col3 = st.columns([1, 4, 1])
 
         with col1:
-            # Display avatar
-            if isinstance(avatar, str):  # Emoji
-                st.write(avatar)
-            else:  # Image
-                st.image(avatar, width=32)
+            # Display avatar - FIXED: Handle None and invalid avatars
+            if avatar is not None:
+                if isinstance(avatar, str):  # Emoji
+                    st.write(avatar)
+                else:  # Image (PIL Image object)
+                    try:
+                        st.image(avatar, width=32)
+                    except Exception as e:
+                        # Fallback to bot emoji if image display fails
+                        bot_emoji = bot.emoji if hasattr(bot, 'emoji') else '🤖'
+                        st.write(bot_emoji)
+            else:
+                # No avatar available, use bot emoji
+                bot_emoji = bot.emoji if hasattr(bot, 'emoji') else '🤖'
+                st.write(bot_emoji)
 
         with col2:
             # Chat selection button - full width

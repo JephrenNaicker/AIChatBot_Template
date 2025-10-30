@@ -9,14 +9,13 @@ class BotManager:
     def _fix_coroutine_avatars():
         """Fix any bots that have coroutines stored as avatars"""
         for bot in st.session_state.user_bots:
-            avatar_data = bot.get("appearance", {}).get("avatar")
-            if hasattr(avatar_data, '__await__'):
-                # This is a coroutine - replace with None
-                bot["appearance"]["avatar"] = None
-                # Make sure the bot has an emoji
-                if "emoji" not in bot or not bot["emoji"]:
-                    bot["emoji"] = "🤖"
-
+            # We should only have Bot objects here now
+            if hasattr(bot, 'appearance'):
+                avatar_data = bot.appearance.get("avatar_data")
+                if hasattr(avatar_data, '__await__'):
+                    bot.appearance["avatar_data"] = None
+                    if not bot.emoji:
+                        bot.emoji = "🤖"
 
     @staticmethod
     async def _handle_uploaded_file(uploaded_file, bot_name):
@@ -35,9 +34,9 @@ class BotManager:
     @staticmethod
     def _update_bot_status(bot_name, new_status):
         """Update a bot's status in the user_bots list"""
-        for i, b in enumerate(st.session_state.user_bots):
-            if b["name"] == bot_name:
-                st.session_state.user_bots[i]["status"] = new_status
+        for bot in st.session_state.user_bots:
+            if bot.name == bot_name:
+                bot.status = new_status
                 st.toast(f"{bot_name} {'published' if new_status == 'published' else 'unpublished'}!",
                          icon="🚀" if new_status == "published" else "📦")
                 st.rerun()
@@ -46,7 +45,7 @@ class BotManager:
     def _delete_bot(bot_name):
         """Delete a bot from the user_bots list"""
         st.session_state.user_bots = [
-            b for b in st.session_state.user_bots if b["name"] != bot_name
+            bot for bot in st.session_state.user_bots if bot.name != bot_name
         ]
         st.rerun()
 
@@ -344,75 +343,72 @@ class BotManager:
 
     @staticmethod
     async def _handle_form_submission(form_data):
-        """Handle form submission and bot creation"""
+        """Handle form submission and bot creation using Bot object"""
         if not form_data["basic"]["name"]:
             st.error("Please give your bot a name")
         else:
-            new_bot = {
-                "name": form_data["basic"]["name"],
-                "emoji": form_data["basic"]["emoji"],
-                "desc": form_data["basic"]["desc"],
-                "tags": form_data["tags"],
-                "status": form_data["status"],
-                "scenario": form_data.get("scenario", ""),
-                "personality": {
+            # Create new Bot object instead of dictionary
+            from models.bot import Bot
+            new_bot = Bot(
+                name=form_data["basic"]["name"],
+                emoji=form_data["basic"]["emoji"],
+                desc=form_data["basic"]["desc"],
+                tags=form_data["tags"],
+                status=form_data["status"],
+                scenario=form_data.get("scenario", ""),
+                personality={
                     "tone": form_data["personality"].get("tone", "Friendly"),
                     "traits": form_data["personality"]["traits"],
                     "greeting": form_data["personality"]["greeting"]
                 },
-                "system_rules": form_data["system_rules"] or DEFAULT_RULES,
-                "appearance": {
+                system_rules=form_data["system_rules"] or DEFAULT_RULES,
+                appearance={
                     "description": form_data["appearance"]["description"],
-                    "avatar_type": form_data["appearance"].get("avatar_type", "Emoji")
+                    "avatar_type": form_data["appearance"].get("avatar_type", "emoji"),
+                    "avatar_data": None  # Initialize as None
                 },
-                "custom": True,
-                "creator": st.session_state.profile_data.get("username", "anonymous")
-            }
+                creator=st.session_state.profile_data.get("username", "anonymous")
+            )
 
-            # Handle avatar based on selection - PROPERLY AWAIT THE COROUTINE
+            # Handle avatar based on selection
             if (form_data["appearance"].get("avatar_type") == "Upload Image" and
                     form_data["appearance"].get("uploaded_file")):
-
-                # Use the image service to handle the upload - AWAIT the coroutine
                 uploaded_file = form_data["appearance"]["uploaded_file"]
                 file_info = await BotManager._handle_uploaded_file(uploaded_file, form_data["basic"]["name"])
 
                 if file_info:
-                    new_bot["appearance"]["avatar"] = file_info  # Store the actual file info, not coroutine
-                    # Use the uploaded image, not the emoji
-                    new_bot["emoji"] = None
-                    st.toast(f"Avatar image saved successfully!", icon="✅")
+                    new_bot.appearance["avatar_data"] = file_info
+                    new_bot.appearance["avatar_type"] = "uploaded"
+                    new_bot.emoji = None
+                    st.toast("Avatar image saved successfully!", icon="✅")
                 else:
-                    # Fall back to emoji if image upload fails
-                    new_bot["appearance"]["avatar"] = None
-                    new_bot["emoji"] = form_data["basic"]["emoji"]
+                    new_bot.appearance["avatar_data"] = None
+                    new_bot.appearance["avatar_type"] = "emoji"
+                    new_bot.emoji = form_data["basic"]["emoji"]
                     st.toast("Failed to save avatar image, using emoji instead", icon="⚠️")
             else:
                 # Use emoji as avatar
-                new_bot["appearance"]["avatar"] = None
-                new_bot["emoji"] = form_data["basic"]["emoji"]
+                new_bot.appearance["avatar_data"] = None
+                new_bot.appearance["avatar_type"] = "emoji"
+                new_bot.emoji = form_data["basic"]["emoji"]
 
             # Handle voice options
             if form_data.get("voice", {}).get("enabled", False):
-                new_bot["voice"] = {
-                    "enabled": True,  # Explicitly set enabled
+                new_bot.voice = {
+                    "enabled": True,
                     "emotion": form_data["voice"]["emotion"]
                 }
-                # Add voice tag if not already present
-                if "voice" not in new_bot["tags"]:
-                    new_bot["tags"].append("voice")
+                if "voice" not in new_bot.tags:
+                    new_bot.tags.append("voice")
                 st.toast(f"Voice enabled with {form_data['voice']['emotion']} emotion!", icon="🔊")
             else:
-                # Ensure voice is disabled if not enabled
-                new_bot["voice"] = {"enabled": False}
-                # Remove voice tag if present
-                new_bot["tags"] = [tag for tag in new_bot["tags"] if tag != "voice"]
+                new_bot.voice = {"enabled": False}
+                new_bot.tags = [tag for tag in new_bot.tags if tag != "voice"]
                 st.toast("Voice not enabled for this character", icon="🔇")
 
             st.session_state.user_bots.append(new_bot)
-            st.success(f"Character '{new_bot['name']}' created successfully!")
+            st.success(f"Character '{new_bot.name}' created successfully!")
 
-            # Clear preset data after successful creation
             if 'preset_data' in st.session_state:
                 del st.session_state.preset_data
 
@@ -440,8 +436,8 @@ class BotManager:
         return [
             bot for bot in st.session_state.user_bots
             if status_filter == "All" or
-               (status_filter == "Drafts" and bot.get("status", "draft") == "draft") or
-               (status_filter == "Published" and bot.get("status", "draft") == "published")
+               (status_filter == "Drafts" and bot.status == "draft") or
+               (status_filter == "Published" and bot.status == "published")
         ]
 
     @staticmethod
@@ -451,46 +447,45 @@ class BotManager:
 
         for i, bot in enumerate(bots):
             with cols[i % 2]:
-                # Use the unified bot_card component with manage mode
+                # Use the unified bot_card component with manage mode - PASS BOT OBJECT
                 bot_card(bot=bot, mode="manage", key_suffix=str(i))
 
                 # Additional actions specific to my_bots page
                 action_cols = st.columns([1, 1, 1])
                 with action_cols[0]:
-                    if st.button("💬", key=f"chat_{bot['name']}_{i}", help="Chat", use_container_width=True):
-                        st.session_state.selected_bot = bot["name"]
+                    if st.button("💬", key=f"chat_{bot.name}_{i}", help="Chat", use_container_width=True):
+                        st.session_state.selected_bot = bot.name
                         st.session_state.page = "chat"
                         st.rerun()
 
                 with action_cols[1]:
-                    if st.button("✏️", key=f"edit_{bot['name']}_{i}", help="Edit", use_container_width=True):
+                    if st.button("✏️", key=f"edit_{bot.name}_{i}", help="Edit", use_container_width=True):
                         st.session_state.editing_bot = bot
                         st.session_state.page = "edit_bot"
                         st.rerun()
 
                 with action_cols[2]:
-                    if bot.get('status', 'draft') == 'draft':
-                        if st.button("🚀", key=f"publish_{bot['name']}_{i}", help="Publish", use_container_width=True):
-                            # Use the async method properly
+                    if bot.status == 'draft':
+                        if st.button("🚀", key=f"publish_{bot.name}_{i}", help="Publish", use_container_width=True):
                             st.session_state.pending_bot_action = {
                                 "type": "update_status",
-                                "bot_name": bot["name"],
+                                "bot_name": bot.name,
                                 "new_status": "published"
                             }
                     else:
-                        if st.button("📦", key=f"unpublish_{bot['name']}_{i}", help="Unpublish",
+                        if st.button("📦", key=f"unpublish_{bot.name}_{i}", help="Unpublish",
                                      use_container_width=True):
                             st.session_state.pending_bot_action = {
                                 "type": "update_status",
-                                "bot_name": bot["name"],
+                                "bot_name": bot.name,
                                 "new_status": "draft"
                             }
 
                 # Delete button in a separate row
-                if st.button("🗑️ Delete", key=f"delete_{bot['name']}_{i}", use_container_width=True):
+                if st.button("🗑️ Delete", key=f"delete_{bot.name}_{i}", use_container_width=True):
                     st.session_state.pending_bot_action = {
                         "type": "delete",
-                        "bot_name": bot["name"]
+                        "bot_name": bot.name
                     }
 
     @staticmethod

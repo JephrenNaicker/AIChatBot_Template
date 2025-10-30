@@ -1,7 +1,10 @@
 import streamlit as st
+import os
+
 from config import TAG_OPTIONS, PERSONALITY_TRAITS, DEFAULT_RULES
 from controllers.bot_manager_controller import BotManager
 from controllers.chat_controller import LLMChatController
+from models.bot import Bot
 
 # Character limits (same as create_bot.py)
 NAME_LIMIT = 80
@@ -10,20 +13,20 @@ DESC_LIMIT = 6000
 APPEARANCE_LIMIT = DESC_LIMIT
 
 
-async def _render_character_details_section(form_data, bot):
+async def _render_character_details_section(form_data, bot: Bot):
     """Render the character details section"""
     st.subheader("🧍 Character Details")
     col1, col2 = st.columns([1, 3])
     with col1:
         form_data["basic"]["emoji"] = st.text_input(
             "Emoji",
-            value=bot.get("emoji", "🤖"),
+            value=bot.emoji,
             help="Choose an emoji to represent your bot (1-2 characters)"
         )
     with col2:
         name_input = st.text_input(
             "Name",
-            value=bot.get("name", ""),
+            value=bot.name,
             help=f"Give your bot a unique name (max {NAME_LIMIT} characters)",
             max_chars=NAME_LIMIT,
             key="name_input"
@@ -33,13 +36,13 @@ async def _render_character_details_section(form_data, bot):
     return form_data
 
 
-def _render_avatar_section(form_data, bot):
+def _render_avatar_section(form_data, bot: Bot):
     """Render the avatar selection section"""
     st.write("**Avatar:**")
 
     # Determine initial avatar type
     avatar_type_index = 0
-    if bot.get('appearance', {}).get('avatar') or bot.get('appearance', {}).get('avatar_url'):
+    if bot.appearance.get("avatar_type") == "Upload Image" or bot.appearance.get("avatar_data"):
         avatar_type_index = 1
 
     avatar_option = st.radio(
@@ -67,16 +70,29 @@ def _render_avatar_section(form_data, bot):
             st.image(uploaded_file, width=100, caption="Uploaded Avatar")
             # Don't show emoji when image is uploaded
             form_data["appearance"]["avatar_emoji"] = None
-        elif bot.get('appearance', {}).get('avatar'):
+        elif bot.appearance.get("avatar_data"):
             # Show existing image if available
-            avatar_info = bot['appearance']['avatar']
-            if isinstance(avatar_info, dict) and 'filepath' in avatar_info:
-                try:
-                    from PIL import Image
-                    image = Image.open(avatar_info['filepath'])
-                    st.image(image, width=100, caption="Current Avatar")
-                except:
-                    st.write("Could not load current avatar image")
+            avatar_data = bot.appearance.get("avatar_data", {})
+
+            try:
+                # Handle dictionary format
+                if isinstance(avatar_data, dict):
+                    filepath = avatar_data.get('filepath')
+
+                    # Normalize path separators
+                    if filepath:
+                        filepath = filepath.replace('\\', '/')
+
+                    if filepath and os.path.exists(filepath):
+                        st.image(filepath, width=100, caption="Current Avatar")
+                    else:
+                        st.write("Current avatar image (file not found)")
+                else:
+                    st.write("Current avatar image (invalid format)")
+
+            except Exception as e:
+                st.write("Current avatar image (display error)")
+
             form_data["appearance"]["uploaded_file"] = None
         else:
             # No file uploaded, fall back to emoji
@@ -90,15 +106,14 @@ def _render_avatar_section(form_data, bot):
 
     return form_data
 
-
-async def _render_appearance_section(form_data, bot):
+async def _render_appearance_section(form_data, bot: Bot):
     """Render the appearance section"""
     st.subheader("👀 Physical Appearance")
     appearance_col, enhance_col = st.columns([0.9, 0.1])
 
     # Initialize session state if not exists
     if "appearance_text" not in st.session_state:
-        st.session_state.appearance_text = bot.get('appearance', {}).get('description', '')
+        st.session_state.appearance_text = bot.appearance.get("description", "")
 
     with appearance_col:
         st.markdown('<div class="text-area-container">', unsafe_allow_html=True)
@@ -130,20 +145,20 @@ async def _render_appearance_section(form_data, bot):
     return form_data
 
 
-async def _render_scenario_section(form_data, bot):
+async def _render_scenario_section(form_data, bot: Bot):
     """Render the scenario section"""
     st.subheader("🎭 Scenario Context")
 
-    # Initialize session state if not exists - FIXED: Use bot data directly
+    # Initialize session state if not exists
     if "scenario_text" not in st.session_state:
-        st.session_state.scenario_text = bot.get('scenario', '')
+        st.session_state.scenario_text = bot.scenario
 
     scenario_col, enhance_col = st.columns([0.9, 0.1])
     with scenario_col:
         st.markdown('<div class="text-area-container">', unsafe_allow_html=True)
         scenario_text = st.text_area(
             "Optional: Set the scene or scenario",
-            value=st.session_state.scenario_text,  # FIXED: Use session state value
+            value=st.session_state.scenario_text,
             height=100,
             help=f"Describe the situation, setting, or context for this interaction (max {DESC_LIMIT} characters)",
             max_chars=DESC_LIMIT,
@@ -173,13 +188,14 @@ async def _render_scenario_section(form_data, bot):
     form_data["scenario"] = st.session_state.scenario_text
     return form_data
 
-async def _render_background_section(form_data, bot):
+
+async def _render_background_section(form_data, bot: Bot):
     """Render the character background section"""
     st.subheader("📖 Character Background")
 
     # Initialize session state if not exists
     if "desc_text" not in st.session_state:
-        st.session_state.desc_text = bot.get('desc', '')
+        st.session_state.desc_text = bot.desc
 
     desc_col, enhance_col = st.columns([0.9, 0.1])
     with desc_col:
@@ -209,26 +225,26 @@ async def _render_background_section(form_data, bot):
     return form_data
 
 
-def _render_personality_section(form_data, bot):
+def _render_personality_section(form_data, bot: Bot):
     """Render the personality traits section"""
     st.subheader("🌟 Personality")
     form_data["personality"]["traits"] = st.multiselect(
         "Key Personality Traits",
         PERSONALITY_TRAITS,
-        default=bot.get("personality", {}).get("traits", []),
+        default=bot.personality.get("traits", []),
         help="Select traits that define your character's personality"
     )
     return form_data
 
 
-def _render_rules_section(form_data, bot):
+def _render_rules_section(form_data, bot: Bot):
     """Render the rules section"""
     st.subheader("🧠 Thought Process & Rules")
     with st.expander("⚙️ Configure Behavior Rules", expanded=False):
         st.markdown('<div class="text-area-container">', unsafe_allow_html=True)
         rules_text = st.text_area(
             "Custom Behavior Rules",
-            value=bot.get("system_rules", DEFAULT_RULES),
+            value=bot.system_rules or DEFAULT_RULES,
             height=200,
             help="Define how your character thinks and responds",
             key="rules_text"
@@ -241,13 +257,13 @@ def _render_rules_section(form_data, bot):
     return form_data
 
 
-async def _render_greeting_section(form_data, bot):
+async def _render_greeting_section(form_data, bot: Bot):
     """Render the greeting section"""
     st.subheader("👋 First Introduction")
 
     # Initialize session state if not exists
     if "greeting_text" not in st.session_state:
-        st.session_state.greeting_text = bot.get("personality", {}).get("greeting", "")
+        st.session_state.greeting_text = bot.personality.get("greeting", "")
 
     greeting_col, enhance_col = st.columns([0.9, 0.1])
     with greeting_col:
@@ -306,11 +322,11 @@ async def _render_greeting_section(form_data, bot):
     return form_data
 
 
-def _render_tags_section(form_data, bot):
+def _render_tags_section(form_data, bot: Bot):
     """Render the tags section"""
     st.subheader("🏷️ Tags")
     all_tags = TAG_OPTIONS + st.session_state.get('custom_tags', [])
-    valid_bot_tags = [tag for tag in bot.get("tags", []) if tag in all_tags]
+    valid_bot_tags = [tag for tag in bot.tags if tag in all_tags]
     form_data["tags"] = st.multiselect(
         "Select tags that describe your character",
         all_tags,
@@ -319,13 +335,13 @@ def _render_tags_section(form_data, bot):
     return form_data
 
 
-def _render_voice_options(form_data, bot):
+def _render_voice_options(form_data, bot: Bot):
     """Render the voice options section"""
     with st.expander("🗣️ Voice Options"):
         if hasattr(st.session_state, 'voice_service') and st.session_state.voice_service is not None:
             voice_enabled = st.checkbox(
                 "Enable Voice for this Character",
-                value=bot.get("voice", {}).get("enabled", False),
+                value=bot.voice.get("enabled", False),
                 help="Add voice synthesis to your character",
                 key="voice_enable_checkbox"
             )
@@ -335,7 +351,7 @@ def _render_voice_options(form_data, bot):
                 try:
                     emotions = st.session_state.voice_service.get_available_emotions()
                     if emotions:
-                        current_emotion = bot.get("voice", {}).get("emotion", "neutral")
+                        current_emotion = bot.voice.get("emotion", "neutral")
                         default_idx = emotions.index(current_emotion) if current_emotion in emotions else 0
 
                         selected_emotion = st.selectbox(
@@ -360,10 +376,10 @@ def _render_voice_options(form_data, bot):
     return form_data
 
 
-def _render_status_section(form_data, bot):
+def _render_status_section(form_data, bot: Bot):
     """Render the status section"""
     st.subheader("🔄 Status")
-    status_index = 0 if bot.get("status", "draft") == "draft" else 1
+    status_index = 0 if bot.status == "draft" else 1
     form_data["status"] = st.radio(
         "Initial Status",
         ["Draft", "Published"],
@@ -419,7 +435,7 @@ async def edit_bot_page():
         st.rerun()
 
     bot = st.session_state.editing_bot
-    st.title(f"✏️ Editing {bot['name']}")
+    st.title(f"✏️ Editing {bot.name}")
 
     # Initialize session state for custom tags if not exists
     if 'custom_tags' not in st.session_state:
@@ -427,16 +443,16 @@ async def edit_bot_page():
 
     # Initialize session state variables for text fields
     if "appearance_text" not in st.session_state:
-        st.session_state.appearance_text = bot.get('appearance', {}).get('description', '')
+        st.session_state.appearance_text = bot.appearance.get("description", "")
 
     if "desc_text" not in st.session_state:
-        st.session_state.desc_text = bot.get('desc', '')
+        st.session_state.desc_text = bot.desc
 
     if "greeting_text" not in st.session_state:
-        st.session_state.greeting_text = bot.get('personality', {}).get('greeting', '')
+        st.session_state.greeting_text = bot.personality.get("greeting", "")
 
     if "scenario_text" not in st.session_state:
-        st.session_state.scenario_text = bot.get('scenario', '')
+        st.session_state.scenario_text = bot.scenario
 
     # Main form for bot editing - matches create_bot structure
     form_data = {
@@ -467,83 +483,99 @@ async def edit_bot_page():
     # Render custom tags form
     _render_custom_tags_form()
 
-    # Handle form submission
+    # Handle form submission - FIXED AVATAR HANDLING
     if should_save:
         if not form_data["basic"].get("name"):
             st.error("Please give your bot a name")
         else:
-            # Update the bot data structure
-            updated_bot = {
-                "name": form_data["basic"]["name"],
-                "emoji": form_data["basic"]["emoji"],
-                "desc": form_data["basic"]["desc"],
-                "status": form_data["status"],
-                "scenario": form_data["scenario"],
-                "appearance": {
-                    "description": form_data["appearance"]["description"],
-                    "avatar_type": form_data["appearance"]["avatar_type"],
-                    "avatar_emoji": form_data["appearance"]["avatar_emoji"]
-                },
-                "tags": form_data["tags"],
-                "personality": {
-                    "traits": form_data["personality"]["traits"],
-                    "greeting": form_data["personality"]["greeting"],
-                    "tone": bot['personality'].get('tone', 'Friendly')  # Preserve existing tone
-                },
-                "system_rules": form_data["system_rules"],
-                "voice": form_data["voice"],
-                "custom": True,
-                "creator": bot.get("creator", st.session_state.profile_data.get("username", "anonymous"))
-            }
+            # Update the bot using the Bot object's update method
+            try:
+                # Create form data structure that matches Bot.update_from_form_data expectations
+                update_form_data = {
+                    "basic": {
+                        "name": form_data["basic"]["name"],
+                        "emoji": form_data["basic"]["emoji"],
+                        "desc": form_data["basic"]["desc"]
+                    },
+                    "tags": form_data["tags"],
+                    "status": form_data["status"],
+                    "scenario": form_data["scenario"],
+                    "personality": {
+                        "tone": bot.personality.get("tone", "Friendly"),  # Preserve existing tone
+                        "traits": form_data["personality"]["traits"],
+                        "greeting": form_data["personality"]["greeting"]
+                    },
+                    "system_rules": form_data["system_rules"],
+                    "appearance": {
+                        "description": form_data["appearance"]["description"],
+                        "avatar_type": form_data["appearance"]["avatar_type"],
+                        "avatar_data": bot.appearance.get("avatar_data")  # Preserve existing avatar data initially
+                    },
+                    "voice": form_data["voice"]
+                }
 
-            # Handle uploaded file if changed - use the same logic as create_bot
-            if (form_data["appearance"].get("avatar_type") == "Upload Image" and
-                    form_data["appearance"].get("uploaded_file")):
+                # Handle avatar data - FIXED LOGIC
+                if form_data["appearance"].get("avatar_type") == "Upload Image":
+                    if form_data["appearance"].get("uploaded_file"):
+                        # Process new uploaded file
+                        uploaded_file = form_data["appearance"]["uploaded_file"]
+                        file_info = await BotManager._handle_uploaded_file(uploaded_file, form_data["basic"]["name"])
 
-                # Process the uploaded file using the same method as create_bot
-                uploaded_file = form_data["appearance"]["uploaded_file"]
-                file_info = await BotManager._handle_uploaded_file(uploaded_file, form_data["basic"]["name"])
-
-                if file_info:
-                    updated_bot["appearance"]["avatar"] = file_info
-                    # Use the uploaded image, not the emoji
-                    updated_bot["emoji"] = None
-                    st.toast(f"Avatar image saved successfully!", icon="✅")
+                        if file_info:
+                            update_form_data["appearance"]["avatar_data"] = file_info
+                            update_form_data["appearance"]["avatar_type"] = "uploaded"
+                            st.toast("New avatar image saved successfully!", icon="✅")
+                        else:
+                            # Fall back to existing avatar or emoji
+                            if bot.appearance.get("avatar_data"):
+                                update_form_data["appearance"]["avatar_type"] = "uploaded"
+                                st.toast("Failed to save new avatar, keeping existing image", icon="⚠️")
+                            else:
+                                update_form_data["appearance"]["avatar_type"] = "emoji"
+                                update_form_data["appearance"]["avatar_data"] = None
+                                st.toast("Failed to save avatar image, using emoji instead", icon="⚠️")
+                    else:
+                        # No new file uploaded, keep existing avatar data
+                        if bot.appearance.get("avatar_data"):
+                            update_form_data["appearance"]["avatar_type"] = "uploaded"
+                            update_form_data["appearance"]["avatar_data"] = bot.appearance.get("avatar_data")
+                        else:
+                            # No existing avatar, use emoji
+                            update_form_data["appearance"]["avatar_type"] = "emoji"
+                            update_form_data["appearance"]["avatar_data"] = None
                 else:
-                    # Fall back to emoji if image upload fails
-                    updated_bot["appearance"]["avatar"] = None
-                    updated_bot["emoji"] = form_data["basic"]["emoji"]
-                    st.toast("Failed to save avatar image, using emoji instead", icon="⚠️")
-            else:
-                # Use emoji as avatar or keep existing image
-                if bot.get('appearance', {}).get('avatar'):
-                    # Keep existing avatar
-                    updated_bot["appearance"]["avatar"] = bot['appearance']['avatar']
-                    updated_bot["emoji"] = None
-                else:
-                    # Use emoji
-                    updated_bot["appearance"]["avatar"] = None
-                    updated_bot["emoji"] = form_data["basic"]["emoji"]
+                    # Emoji selected
+                    update_form_data["appearance"]["avatar_type"] = "emoji"
+                    update_form_data["appearance"]["avatar_data"] = None
 
-            # Update the bot in user_bots
-            bot_updated = False
-            original_bot_name = bot['name']  # Store the original name for finding the bot
-            for i, b in enumerate(st.session_state.user_bots):
-                if b['name'] == original_bot_name:
-                    st.session_state.user_bots[i] = updated_bot
-                    bot_updated = True
-                    break
+                # Update the bot object
+                bot.update_from_form_data(update_form_data)
 
-            if not bot_updated:
-                # If bot name was changed, we need to find it by some other identifier
-                # For now, just add it as a new bot (this might not be the desired behavior)
-                st.session_state.user_bots.append(updated_bot)
+                # Update the bot in user_bots list
+                bot_updated = False
+                for i, user_bot in enumerate(st.session_state.user_bots):
+                    if user_bot.bot_id == bot.bot_id:
+                        st.session_state.user_bots[i] = bot
+                        bot_updated = True
+                        break
 
-            # Clear session state variables
-            for key in ["appearance_text", "desc_text", "greeting_text","scenario_text"]:
-                if key in st.session_state:
-                    del st.session_state[key]
+                if not bot_updated:
+                    # If not found by ID, try to find by name (fallback)
+                    original_bot_name = st.session_state.get('original_bot_name', bot.name)
+                    for i, user_bot in enumerate(st.session_state.user_bots):
+                        if user_bot.name == original_bot_name:
+                            st.session_state.user_bots[i] = bot
+                            bot_updated = True
+                            break
 
-            st.success(f"Character '{form_data['basic']['name']}' updated successfully!")
-            st.session_state.page = "my_bots"
-            st.rerun()
+                # Clear session state variables
+                for key in ["appearance_text", "desc_text", "greeting_text", "scenario_text"]:
+                    if key in st.session_state:
+                        del st.session_state[key]
+
+                st.success(f"Character '{bot.name}' updated successfully!")
+                st.session_state.page = "my_bots"
+                st.rerun()
+
+            except Exception as e:
+                st.error(f"Error updating bot: {str(e)}")

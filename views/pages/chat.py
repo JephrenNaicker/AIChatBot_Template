@@ -307,11 +307,8 @@ async def _display_single_message(role, message, idx, chat_history, current_bot,
     """Display a single message with appropriate formatting and actions"""
     avatar = None
     if role == "assistant":
-        # Convert Bot object to dict for avatar display if needed
-        bot_for_avatar = current_bot
-        if hasattr(current_bot, 'to_dict'):
-            bot_for_avatar = current_bot.to_dict()
-        avatar = get_avatar_display(bot_for_avatar, size=40)
+        # ✅ Pass the Bot object directly - no conversion to dict needed
+        avatar = get_avatar_display(current_bot, size=40)
 
     # Process message to style quoted text (for bot messages only)
     display_message = message
@@ -323,7 +320,8 @@ async def _display_single_message(role, message, idx, chat_history, current_bot,
             message
         )
 
-    with st.chat_message(role, avatar=avatar if role == "assistant" else None):
+    # ✅ Pass avatar directly for both roles
+    with st.chat_message(role, avatar=avatar):
         if role == "assistant" and '"' in message:
             # Use markdown for styled text
             st.markdown(display_message, unsafe_allow_html=True)

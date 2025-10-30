@@ -11,13 +11,13 @@ def bot_card(bot, mode="home", show_actions=True, key_suffix="", on_chat=None, o
     Unified bot card component for all pages
 
     Parameters:
-    - bot: Bot dictionary
+    - bot: Bot object
     - mode: "home" (gallery) or "manage" (my bots)
     - show_actions: Whether to show action buttons
     - key_suffix: Unique key suffix for Streamlit elements
     - on_chat, on_edit, on_delete, on_publish: Custom callback functions
     """
-    unique_key = f"{mode}_{bot['name']}_{key_suffix}"
+    unique_key = f"{mode}_{bot.name}_{key_suffix}"
 
     if mode == "home":
         return _home_bot_card(bot, show_actions, unique_key, on_chat)
@@ -34,34 +34,34 @@ def _home_bot_card(bot, show_actions, unique_key, on_chat):
 
     # Create tags HTML if tags exist AND are not empty
     tags_section = ""
-    has_tags = bot.get('tags') and len(bot['tags']) > 0
+    has_tags = bot.tags and len(bot.tags) > 0
 
     if has_tags:
         tags_html = '<div class="bot-tags">'
         tags_html += ''.join(
-            f'<span class="bot-tag">{tag}</span>' for tag in bot['tags']
+            f'<span class="bot-tag">{tag}</span>' for tag in bot.tags
         )
         tags_html += '</div>'
         tags_section = f'<div class="bot-tags-container"><div class="bot-tags-title">TAGS</div>{tags_html}</div>'
 
     # Get emoji - handle None case
-    emoji = bot.get('emoji', '🤖') or '🤖'
+    emoji = bot.emoji or '🤖'
 
     # Create the HTML content - SIMPLIFIED to avoid empty divs
     html_content = f"""
     <div class="portrait-card">
         {avatar_html}
         <div class="portrait-card-content">
-            <div class="portrait-card-name">{bot['name']}</div>
-            <div class="portrait-card-desc">{bot['desc'][:100]}{'...' if len(bot['desc']) > 100 else ''}</div>
+            <div class="portrait-card-name">{bot.name}</div>
+            <div class="portrait-card-desc">{bot.desc[:100]}{'...' if len(bot.desc) > 100 else ''}</div>
             {tags_section}
         </div>
 
         <div class="bot-info-expanded">
             <div class="bot-emoji">{emoji}</div>
-            <h4>{bot['name']}</h4>
+            <h4>{bot.name}</h4>
             {tags_section}
-            <div class="bot-description">{bot['desc']}</div>
+            <div class="bot-description">{bot.desc}</div>
             <div class="bot-action-hint">
                 💬 Click "Chat" to start conversation
             </div>
@@ -83,7 +83,7 @@ def _manage_bot_card(bot, show_actions, unique_key, on_chat, on_edit, on_delete,
     avatar_html = _get_portrait_avatar_html(bot)
 
     # Status badge
-    status = bot.get("status", "draft")
+    status = bot.status
     status_color = "#f39c12" if status == "draft" else "#2ecc71"
     status_text = "DRAFT" if status == "draft" else "PUBLISHED"
 
@@ -93,8 +93,8 @@ def _manage_bot_card(bot, show_actions, unique_key, on_chat, on_edit, on_delete,
         {avatar_html}
         <span class="status-badge status-{status}" style="background: {status_color};">{status_text}</span>
         <div class="portrait-card-content">
-            <div class="portrait-card-name">{bot['name']}</div>
-            <div class="portrait-card-desc">{bot['desc'][:100]}{'...' if len(bot['desc']) > 100 else ''}</div>
+            <div class="portrait-card-name">{bot.name}</div>
+            <div class="portrait-card-desc">{bot.desc[:100]}{'...' if len(bot.desc) > 100 else ''}</div>
         </div>
     </div>
     """
@@ -129,14 +129,14 @@ def _manage_bot_card(bot, show_actions, unique_key, on_chat, on_edit, on_delete,
                         on_publish(bot)
                     else:
                         from controllers.bot_manager_controller import BotManager
-                        BotManager._update_bot_status(bot["name"], "published")
+                        BotManager._update_bot_status(bot.name, "published")
             else:
                 if st.button("📦 Unpublish", key=f"unpublish_{unique_key}", use_container_width=True):
                     if on_publish:  # Reuse on_publish for unpublish too
                         on_publish(bot, "draft")
                     else:
                         from controllers.bot_manager_controller import BotManager
-                        BotManager._update_bot_status(bot["name"], "draft")
+                        BotManager._update_bot_status(bot.name, "draft")
 
         with col4:
             if st.button("🗑️ Delete", key=f"delete_{unique_key}", use_container_width=True):
@@ -144,7 +144,7 @@ def _manage_bot_card(bot, show_actions, unique_key, on_chat, on_edit, on_delete,
                     on_delete(bot)
                 else:
                     from controllers.bot_manager_controller import BotManager
-                    BotManager._delete_bot(bot["name"])
+                    BotManager._delete_bot(bot.name)
 
 
 def _default_bot_card(bot, show_actions, unique_key, on_chat):
@@ -159,22 +159,22 @@ def _default_bot_card(bot, show_actions, unique_key, on_chat):
 
             with cols[1]:
                 status_html = ""
-                if bot.get("status") == "draft":
+                if bot.status == "draft":
                     status_html = f'<span style="color: #f39c12; font-weight: bold; font-size: 0.8rem; margin-left: 8px;">DRAFT</span>'
 
                 st.markdown(
-                    f"<h3 style='margin-bottom: 0.2rem; display: flex; align-items: center;'>{bot['name']}{status_html}</h3>",
+                    f"<h3 style='margin-bottom: 0.2rem; display: flex; align-items: center;'>{bot.name}{status_html}</h3>",
                     unsafe_allow_html=True)
 
-                st.markdown(f"<p style='color: #666; margin-bottom: 0.5rem;'>{bot['desc']}</p>",
+                st.markdown(f"<p style='color: #666; margin-bottom: 0.5rem;'>{bot.desc}</p>",
                             unsafe_allow_html=True)
 
-            if bot.get('tags'):
+            if bot.tags:
                 tags_html = '<div style="display: flex; flex-wrap: wrap; gap: 0.3rem; margin: 0.5rem 0;">'
                 tags_html += ''.join(
                     [f'<span style="background: #2a3b4d; color: #7fbbde; padding: 0.2rem 0.6rem; '
                      f'border-radius: 1rem; font-size: 0.75rem;">{tag}</span>'
-                     for tag in bot['tags']]
+                     for tag in bot.tags]
                 )
                 tags_html += '</div>'
                 st.markdown(tags_html, unsafe_allow_html=True)
@@ -194,14 +194,14 @@ def _handle_chat_click(bot, on_chat):
     if on_chat:
         on_chat(bot)
     else:
-        st.session_state.selected_bot = bot['name']
+        st.session_state.selected_bot = bot.name
         st.session_state.page = "chat"
         st.rerun()
 
 
 def _get_portrait_avatar_html(bot):
     """Generate HTML for portrait-style avatar background"""
-    avatar_data = bot.get("appearance", {}).get("avatar")
+    avatar_data = bot.appearance.get("avatar_data")
 
     # Handle image avatar
     if (avatar_data and
@@ -225,7 +225,7 @@ def _get_portrait_avatar_html(bot):
 
 def _get_enhanced_emoji_background(bot):
     """Create a more visually appealing emoji background"""
-    emoji = bot.get("emoji", "🤖")
+    emoji = bot.emoji or "🤖"
 
     # Different gradient backgrounds based on bot type or random
     gradients = [
@@ -252,11 +252,11 @@ def _get_enhanced_emoji_background(bot):
 
 def _get_avatar_html(bot):
     """Generate HTML for default avatar"""
-    avatar_data = bot.get("appearance", {}).get("avatar")
+    avatar_data = bot.appearance.get("avatar_data")
 
     # Handle coroutine
     if asyncio.iscoroutine(avatar_data):
-        return f'<div style="font-size: 2rem; text-align: center; width: 60px; height: 60px; display: flex; align-items: center; justify-content: center; background: #f0f2f6; border-radius: 8px;">{bot.get("emoji", "🤖")}</div>'
+        return f'<div style="font-size: 2rem; text-align: center; width: 60px; height: 60px; display: flex; align-items: center; justify-content: center; background: #f0f2f6; border-radius: 8px;">{bot.emoji or "🤖"}</div>'
 
     # Handle image avatar
     elif (avatar_data and
@@ -275,11 +275,11 @@ def _get_avatar_html(bot):
             </div>
             '''
         except Exception as e:
-            return f'<div style="font-size: 2rem; text-align: center; width: 60px; height: 60px; display: flex; align-items: center; justify-content: center; background: #f0f2f6; border-radius: 8px;">{bot.get("emoji", "🤖")}</div>'
+            return f'<div style="font-size: 2rem; text-align: center; width: 60px; height: 60px; display: flex; align-items: center; justify-content: center; background: #f0f2f6; border-radius: 8px;">{bot.emoji or "🤖"}</div>'
 
     # Handle emoji avatar
     else:
-        return f'<div style="font-size: 2rem; text-align: center; width: 60px; height: 60px; display: flex; align-items: center; justify-content: center; background: #f0f2f6; border-radius: 8px;">{bot.get("emoji", "🤖")}</div>'
+        return f'<div style="font-size: 2rem; text-align: center; width: 60px; height: 60px; display: flex; align-items: center; justify-content: center; background: #f0f2f6; border-radius: 8px;">{bot.emoji or "🤖"}</div>'
 
 
 def get_bot_card_css():
