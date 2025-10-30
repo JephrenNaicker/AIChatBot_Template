@@ -3,6 +3,7 @@ import streamlit as st
 from config import TAG_OPTIONS, PERSONALITY_TRAITS, DEFAULT_RULES
 from controllers.bot_manager_controller import BotManager
 from controllers.chat_controller import LLMChatController
+from controllers.image_controller import ImageController
 
 # Character limits
 NAME_LIMIT = 80
@@ -256,15 +257,52 @@ async def _render_greeting_section(form_data):
 def _render_tags_section(form_data):
     """Render the tags section"""
     st.subheader("🏷️ Tags")
+    st.markdown("**Required: Select 1-5 tags**")
+
     all_tags = TAG_OPTIONS + st.session_state.get('custom_tags', [])
     preset_tags = st.session_state.get('preset_data', {}).get("tags", [])
     valid_preset_tags = [tag for tag in preset_tags if tag in all_tags]
-    form_data["tags"] = st.multiselect(
-        "Select tags that describe your character",
+
+    # Use multiselect with validation
+    selected_tags = st.multiselect(
+        "Select tags that describe your character (1-5 required)",
         all_tags,
-        default=valid_preset_tags
+        default=valid_preset_tags,
+        help="Choose at least 1 tag and up to 5 tags to help users discover your character"
     )
+
+    # Validation message
+    if len(selected_tags) == 0:
+        st.error("❌ Please select at least 1 tag")
+    elif len(selected_tags) > 5:
+        st.error("❌ Maximum 5 tags allowed")
+        # Truncate to 5 if user selects more
+        selected_tags = selected_tags[:5]
+
+    form_data["tags"] = selected_tags
     return form_data
+
+
+def _render_custom_tags_form():
+    """Render the custom tags form"""
+    with st.form(key="tag_addition_form"):
+        st.subheader("Add Custom Tag")
+        new_tag_col, add_col = st.columns([4, 1])
+        with new_tag_col:
+            new_custom_tag = st.text_input(
+                "Custom Tag Name",
+                placeholder="Type new tag name",
+                label_visibility="collapsed",
+                key="new_tag_input"
+            )
+        with add_col:
+            if st.form_submit_button(
+                    "Add",
+                    disabled=not new_custom_tag or new_custom_tag in (TAG_OPTIONS + st.session_state.custom_tags)
+            ):
+                if new_custom_tag and new_custom_tag not in st.session_state.custom_tags:
+                    st.session_state.custom_tags.append(new_custom_tag)
+                    st.rerun()
 
 
 def _render_voice_options(form_data):
@@ -321,38 +359,34 @@ def _render_status_section(form_data):
 def _render_action_buttons():
     """Render the action buttons"""
     col1, col2 = st.columns([1, 1])
+
+    # Get current tags from session state to validate
+    current_tags = st.session_state.get('tags_section_tags', [])
+
     with col1:
         if st.button("❌ Cancel"):
             if 'preset_data' in st.session_state:
                 del st.session_state.preset_data
             st.session_state.page = "my_bots"
             st.rerun()
+
     with col2:
-        if st.button("✨ Create Character", type="primary"):
+        # Disable create button if tags validation fails
+        create_disabled = len(current_tags) == 0 or len(current_tags) > 5
+
+        if st.button("✨ Create Character",
+                     type="primary",
+                     disabled=create_disabled,
+                     help="Please select 1-5 tags to continue" if create_disabled else "Create your character"):
+            if len(current_tags) == 0:
+                st.error("❌ Please select at least 1 tag before creating your character")
+                st.stop()
+            elif len(current_tags) > 5:
+                st.error("❌ Maximum 5 tags allowed. Please remove some tags.")
+                st.stop()
             return True
+
     return False
-
-
-def _render_custom_tags_form():
-    """Render the custom tags form"""
-    with st.form(key="tag_addition_form"):
-        st.subheader("Add Custom Tag")
-        new_tag_col, add_col = st.columns([4, 1])
-        with new_tag_col:
-            new_custom_tag = st.text_input(
-                "Custom Tag Name",
-                placeholder="Type new tag name",
-                label_visibility="collapsed",
-                key="new_tag_input"
-            )
-        with add_col:
-            if st.form_submit_button(
-                    "Add",
-                    disabled=not new_custom_tag or new_custom_tag in (TAG_OPTIONS + st.session_state.custom_tags)
-            ):
-                if new_custom_tag and new_custom_tag not in st.session_state.custom_tags:
-                    st.session_state.custom_tags.append(new_custom_tag)
-                    st.rerun()
 
 
 async def create_bot_page():
@@ -388,6 +422,8 @@ async def create_bot_page():
     form_data = _render_voice_options(form_data)
     form_data = _render_status_section(form_data)
 
+    # Store current tags for validation
+    st.session_state.tags_section_tags = form_data["tags"]
     # Render action buttons
     should_create = _render_action_buttons()
 

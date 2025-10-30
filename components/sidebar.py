@@ -1,7 +1,7 @@
 import streamlit as st
 from config import PAGES
 from components.avatar_utils import get_avatar_display
-from config import BOTS
+from config import get_default_bots
 
 
 def get_sidebar_css():
@@ -179,8 +179,17 @@ async def _display_chat_list():
 
     for bot_name in list(st.session_state.chat_histories.keys()):
         # Find the bot in either default bots (from config) or user bots
-        all_bots = BOTS + st.session_state.user_bots
-        bot = next((b for b in all_bots if b['name'] == bot_name), None)
+        all_bots = get_default_bots() + st.session_state.user_bots
+
+        # Helper function to safely get bot name from either object or dict
+        def _get_bot_name(bot):
+            if hasattr(bot, 'name'):
+                return bot.name
+            elif isinstance(bot, dict):
+                return bot.get('name', '')
+            return ''
+
+        bot = next((b for b in all_bots if _get_bot_name(b) == bot_name), None)
 
         if not bot:
             continue

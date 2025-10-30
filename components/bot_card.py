@@ -32,32 +32,35 @@ def _home_bot_card(bot, show_actions, unique_key, on_chat):
     # Get avatar HTML for background
     avatar_html = _get_portrait_avatar_html(bot)
 
-    # Create tags HTML if tags exist
-    tags_html = ""
-    if bot.get('tags'):
+    # Create tags HTML if tags exist AND are not empty
+    tags_section = ""
+    has_tags = bot.get('tags') and len(bot['tags']) > 0
+
+    if has_tags:
         tags_html = '<div class="bot-tags">'
         tags_html += ''.join(
             f'<span class="bot-tag">{tag}</span>' for tag in bot['tags']
         )
         tags_html += '</div>'
+        tags_section = f'<div class="bot-tags-container"><div class="bot-tags-title">TAGS</div>{tags_html}</div>'
 
-    # Get emoji
-    emoji = bot.get('emoji', '🤖')
+    # Get emoji - handle None case
+    emoji = bot.get('emoji', '🤖') or '🤖'
 
-    # Create the HTML content - put everything in ONE markdown call
+    # Create the HTML content - SIMPLIFIED to avoid empty divs
     html_content = f"""
     <div class="portrait-card">
         {avatar_html}
         <div class="portrait-card-content">
             <div class="portrait-card-name">{bot['name']}</div>
             <div class="portrait-card-desc">{bot['desc'][:100]}{'...' if len(bot['desc']) > 100 else ''}</div>
-            {f'<div class="bot-tags-container"><div class="bot-tags-title">TAGS</div>{tags_html}</div>' if bot.get('tags') else ''}
+            {tags_section}
         </div>
 
         <div class="bot-info-expanded">
             <div class="bot-emoji">{emoji}</div>
             <h4>{bot['name']}</h4>
-            {f'<div class="bot-tags-container"><div class="bot-tags-title">TAGS</div>{tags_html}</div>' if bot.get('tags') else ''}
+            {tags_section}
             <div class="bot-description">{bot['desc']}</div>
             <div class="bot-action-hint">
                 💬 Click "Chat" to start conversation
@@ -73,7 +76,6 @@ def _home_bot_card(bot, show_actions, unique_key, on_chat):
     # Single chat button
     if show_actions and st.button("💬 Chat", key=f"chat_{unique_key}", use_container_width=True):
         _handle_chat_click(bot, on_chat)
-
 
 def _manage_bot_card(bot, show_actions, unique_key, on_chat, on_edit, on_delete, on_publish):
     """Bot card for my bots page - full management with edit/delete/publish options"""

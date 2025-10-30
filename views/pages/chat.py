@@ -1,9 +1,9 @@
 import streamlit as st
-
+import re
 from components.avatar_utils import get_avatar_display
 from components.chat_toolbar import display_chat_toolbar
 from components.message_actions import display_message_actions, display_message_edit_interface, handle_pending_edit
-from config import BOTS
+from config import get_default_bots
 from controllers.chat_controller import LLMChatController
 
 
@@ -219,17 +219,46 @@ def _apply_chat_styles():
 
 def _get_bot_details(bot_name):
     """Get the bot's details from session state"""
-    # Check default bots (from config)
-    default_bot = next((b for b in BOTS if b["name"] == bot_name), None)
+    # Check default bots (from config) - these are Bot objects
+    default_bot = next((b for b in get_default_bots() if _get_bot_name(b) == bot_name), None)
     if default_bot:
         return default_bot
 
-    # Check user bots
-    user_bot = next((b for b in st.session_state.user_bots if b["name"] == bot_name), None)
+    # Check user bots - these might be Bot objects or dicts
+    user_bot = next((b for b in st.session_state.user_bots if _get_bot_name(b) == bot_name), None)
     if user_bot:
         return user_bot
 
     return None
+
+
+def _get_bot_attribute(bot, attribute, default=None):
+    """Safely get attribute from bot whether it's a Bot object or dictionary"""
+    if hasattr(bot, attribute):
+        return getattr(bot, attribute, default)
+    elif isinstance(bot, dict):
+        return bot.get(attribute, default)
+    return default
+
+
+def _get_bot_name(bot):
+    """Safely get bot name from either Bot object or dictionary"""
+    return _get_bot_attribute(bot, 'name', 'Unknown Bot')
+
+
+def _get_bot_emoji(bot):
+    """Safely get bot emoji from either Bot object or dictionary"""
+    return _get_bot_attribute(bot, 'emoji', '🤖')
+
+
+def _get_bot_personality(bot):
+    """Safely get bot personality from either Bot object or dictionary"""
+    return _get_bot_attribute(bot, 'personality', {})
+
+
+def _get_bot_voice(bot):
+    """Safely get bot voice settings from either Bot object or dictionary"""
+    return _get_bot_attribute(bot, 'voice', {})
 
 
 def _handle_bot_not_found():
@@ -262,8 +291,9 @@ def _initialize_audio_cache():
 
 async def _display_messages(chat_history, current_bot, bot_name, bot_controller):
     """Display all messages in the chat history"""
-    bot_emoji = current_bot["emoji"] if current_bot else "🤖"
-    bot_has_voice = current_bot.get("voice", {}).get("enabled", False) if current_bot else False
+    bot_emoji = _get_bot_emoji(current_bot)
+    bot_voice_settings = _get_bot_voice(current_bot)
+    bot_has_voice = bot_voice_settings.get("enabled", False) if bot_voice_settings else False
 
     for idx, (role, message) in enumerate(chat_history):
         await _display_single_message(
@@ -277,13 +307,16 @@ async def _display_single_message(role, message, idx, chat_history, current_bot,
     """Display a single message with appropriate formatting and actions"""
     avatar = None
     if role == "assistant":
-        avatar = get_avatar_display(current_bot, size=40)
+        # Convert Bot object to dict for avatar display if needed
+        bot_for_avatar = current_bot
+        if hasattr(current_bot, 'to_dict'):
+            bot_for_avatar = current_bot.to_dict()
+        avatar = get_avatar_display(bot_for_avatar, size=40)
 
     # Process message to style quoted text (for bot messages only)
     display_message = message
     if role == "assistant":
         # Wrap text in double quotes with gold color
-        import re
         display_message = re.sub(
             r'"(.*?)"',
             r'<span style="color: #6ded82; font-style: italic;">"\1"</span>',
@@ -297,6 +330,11 @@ async def _display_single_message(role, message, idx, chat_history, current_bot,
         else:
             st.write(message)
 
+        # Convert Bot object to dict for message actions if needed
+        bot_for_actions = current_bot
+        if hasattr(current_bot, 'to_dict'):
+            bot_for_actions = current_bot.to_dict()
+
         # Use the new message_actions component for all message actions
         await display_message_actions(
             role=role,
@@ -306,14 +344,15 @@ async def _display_single_message(role, message, idx, chat_history, current_bot,
             bot_name=bot_name,
             bot_controller=bot_controller,
             bot_has_voice=bot_has_voice,
-            current_bot=current_bot
+            current_bot=bot_for_actions
         )
 
 
 async def _send_greeting_if_needed(chat_history, current_bot, bot_controller):
     """Send greeting message if it's the first interaction"""
     if not st.session_state.greeting_sent or not chat_history:
-        greeting = current_bot["personality"].get("greeting", "") if current_bot else ""
+        personality = _get_bot_personality(current_bot)
+        greeting = personality.get("greeting", "")
         if not greeting:
             greeting = await bot_controller.generate_greeting()
 

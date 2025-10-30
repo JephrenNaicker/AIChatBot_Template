@@ -8,7 +8,7 @@ from langchain.prompts import PromptTemplate
 from langchain.schema.runnable import RunnableSequence
 from langchain_core.exceptions import OutputParserException, LangChainException
 from langchain_community.llms import Ollama
-from config import BOTS
+from config import get_default_bots
 import asyncio
 
 
@@ -44,15 +44,24 @@ class LLMChatController:
         bot_name = st.session_state.get('selected_bot', '')
 
         # Combine default bots and user bots
-        all_bots = BOTS + st.session_state.user_bots
-        current_bot = next((b for b in all_bots if b["name"] == bot_name), None)
+        all_bots = get_default_bots() + st.session_state.user_bots
+
+        # Helper function to safely get bot attributes
+        def _get_bot_attr(bot, attr, default=None):
+            if hasattr(bot, attr):
+                return getattr(bot, attr, default)
+            elif isinstance(bot, dict):
+                return bot.get(attr, default)
+            return default
+
+        current_bot = next((b for b in all_bots if _get_bot_attr(b, 'name') == bot_name), None)
 
         if current_bot:
-            # Handle both default bots and user bots structure
-            personality = current_bot.get("personality", {})
+            # Handle both Bot objects and dictionaries
+            personality = _get_bot_attr(current_bot, 'personality', {})
 
             # Default bots don't have system_rules, so use DEFAULT_RULES from config
-            system_rules = current_bot.get("system_rules", "")
+            system_rules = _get_bot_attr(current_bot, 'system_rules', "")
             if not system_rules:
                 from config import DEFAULT_RULES
                 system_rules = DEFAULT_RULES
@@ -65,26 +74,27 @@ class LLMChatController:
                 system_rules = ""
 
             # Get scenario
-            scenario = current_bot.get('scenario', '')
+            scenario = _get_bot_attr(current_bot, 'scenario', '')
             scenario_context = f"\n[Current Scenario]\n{scenario}\n" if scenario else ""
 
             # Clean up personality traits and quirks
-            traits = personality.get('traits', [])
+            traits = _get_bot_attr(personality, 'traits', [])
             if isinstance(traits, str):
                 traits = [t.strip() for t in traits.split(',') if t.strip()]
             traits_str = ', '.join([t for t in traits if t]) or "friendly"
 
-            quirks = personality.get('quirks', [])
+            quirks = _get_bot_attr(personality, 'quirks', [])
             if isinstance(quirks, str):
                 quirks = [q.strip() for q in quirks.split(',') if q.strip()]
             quirks_str = ', '.join([q for q in quirks if q]) or "none"
 
-            speech_pattern = personality.get('speech_pattern', 'neutral') or "neutral"
-            tone = personality.get('tone', 'neutral') or "neutral"
+            speech_pattern = _get_bot_attr(personality, 'speech_pattern', 'neutral') or "neutral"
+            tone = _get_bot_attr(personality, 'tone', 'neutral') or "neutral"
 
             # Get description - handle different possible field names
-            desc = current_bot.get('desc') or current_bot.get('description') or "A helpful AI assistant"
-            emoji = current_bot.get('emoji', '🤖')
+            desc = _get_bot_attr(current_bot, 'desc') or _get_bot_attr(current_bot,
+                                                                       'description') or "A helpful AI assistant"
+            emoji = _get_bot_attr(current_bot, 'emoji', '🤖')
 
             # Unified template that works for both single and group chats
             prompt_template = f"""You are {bot_name} ({emoji}), {desc}.{scenario_context}
@@ -144,7 +154,8 @@ class LLMChatController:
                 ) | self.llm
             )
 
-    def _process_memory(self, user_input: str, response: str):
+    @staticmethod
+    def _process_memory(user_input: str, response: str):
         """Update conversation memory using LangGraph-style persistence"""
         try:
             # Add messages to history
@@ -247,11 +258,12 @@ class LLMChatController:
             st.error(error_msg)
             return "❌ Sorry, I encountered an error. Please try again."
 
-    async def generate_group_chat_response(self, bot: dict, prompt: str, shared_history: str) -> str:
-        """Specialized response generator for group chats"""
+    async def generate_group_chat_response(self, bot, prompt: str, shared_history: str) -> str:
+        """Specialized response generator for group chats - UPDATED FOR BOT OBJECTS"""
         try:
             # Get this bot's personality memory
-            personality_memory = st.session_state.group_chat['personality_memories'][bot['name']]
+            personality_memory = st.session_state.group_chat['personality_memories'][
+                bot.name]  # CHANGED: bot['name'] to bot.name
             personality_history = personality_memory.load_memory_variables({}).get("chat_history", [])
 
             # Format the personality history
@@ -262,13 +274,13 @@ class LLMChatController:
             )
 
             # Create the full prompt with bot personality and both histories
-            prompt_template = f"""You are {bot['name']} ({bot['emoji']}), {bot['desc']}.
+            prompt_template = f"""You are {bot.name} ({bot.emoji}), {bot.desc}.  # CHANGED: bot['name'] to bot.name, bot['emoji'] to bot.emoji
 
                 [Your Personality Rules]
-                - Always respond as {bot['name']}
-                - Traits: {', '.join(bot['personality'].get('traits', []))}
-                - Speech: {bot['personality'].get('speech_pattern', 'neutral')}
-                - Quirks: {', '.join(bot['personality'].get('quirks', []))}
+                - Always respond as {bot.name}  # CHANGED: bot['name'] to bot.name
+                - Traits: {', '.join(bot.personality.get('traits', []))}  # CHANGED: bot['personality'] to bot.personality
+                - Speech: {bot.personality.get('speech_pattern', 'neutral')}  # CHANGED: bot['personality'] to bot.personality
+                - Quirks: {', '.join(bot.personality.get('quirks', []))}  # CHANGED: bot['personality'] to bot.personality
 
                 [Group Conversation History]
                 {shared_history}
@@ -278,7 +290,7 @@ class LLMChatController:
 
                 User: {prompt}
 
-                {bot['name']}:"""
+                {bot.name}:"""  # CHANGED: bot['name'] to bot.name
 
             # Generate response
             response = self.llm.invoke(prompt_template)
@@ -288,7 +300,7 @@ class LLMChatController:
 
         except Exception as e:
             st.error(f"Group response generation failed: {str(e)}")
-            return f"❌ {bot['name']} encountered an error. Please try again."
+            return f"❌ {bot.name} encountered an error. Please try again."  # CHANGED: bot['name'] to bot.name
 
     async def generate_greeting(self):
         try:
@@ -296,25 +308,34 @@ class LLMChatController:
             scenario_context = ""
 
             # Combine default bots and user bots
-            all_bots = BOTS + st.session_state.user_bots
-            current_bot = next((b for b in all_bots if b["name"] == bot_name), None)
+            all_bots = get_default_bots() + st.session_state.user_bots
+
+            # Helper function to safely get bot attributes
+            def _get_bot_attr(bot, attr, default=None):
+                if hasattr(bot, attr):
+                    return getattr(bot, attr, default)
+                elif isinstance(bot, dict):
+                    return bot.get(attr, default)
+                return default
+
+            current_bot = next((b for b in all_bots if _get_bot_attr(b, 'name') == bot_name), None)
 
             if current_bot:
                 # Handle different personality structures
-                personality = current_bot.get("personality", {})
+                personality = _get_bot_attr(current_bot, 'personality', {})
 
-                tone = personality.get('tone', 'neutral')
-                quirks = personality.get('quirks', [])
+                tone = _get_bot_attr(personality, 'tone', 'neutral')
+                quirks = _get_bot_attr(personality, 'quirks', [])
                 if isinstance(quirks, str):
                     quirks = [q.strip() for q in quirks.split(',') if q.strip()]
 
-                    # Get scenario for context
-                    scenario = current_bot.get('scenario', '')
-                    scenario_context = f"this Is the situation: {scenario}" if scenario else ""
+                # Get scenario for context
+                scenario = _get_bot_attr(current_bot, 'scenario', '')
+                scenario_context = f"this Is the situation: {scenario}" if scenario else ""
 
                 prompt = f"""
                     As {bot_name}, create a friendly 4-5 sentence greeting that:
-                    - Uses your emoji {current_bot.get('emoji', '🤖')}
+                    - Uses your emoji {_get_bot_attr(current_bot, 'emoji', '🤖')}
                     - Mentions your name
                     - Reflects your personality tone: {tone}
                     - Includes one of your quirks: {', '.join(quirks) if quirks else 'none'}{scenario_context}
@@ -322,7 +343,7 @@ class LLMChatController:
                     - Dialogue in double quotes like "this"
                     Only return the output,response 
                     """
-                return self._cached_llm_invoke(prompt, current_bot.get("desc", "A helpful AI assistant"))
+                return self._cached_llm_invoke(prompt, _get_bot_attr(current_bot, "desc", "A helpful AI assistant"))
 
             # Default fallback if bot not found
             return f"Hello! I'm {bot_name}! Let's chat!"
@@ -385,7 +406,8 @@ class LLMChatController:
             st.error(f"Enhancement failed: {str(e)}")
             return context  # Return original text if enhancement fails
 
-    def clear_last_exchange(self):
+    @staticmethod
+    def clear_last_exchange():
         """Remove the last Q&A pair from memory and session state - FIXED VERSION"""
         try:
             selected_bot = st.session_state.get('selected_bot')
@@ -488,7 +510,8 @@ class LLMChatController:
             print(f"Error deleting message: {str(e)}")
             raise
 
-    async def _clear_memory_after_index(self, exchange_index: int):
+    @staticmethod
+    async def _clear_memory_after_index(exchange_index: int):
         """Clear memory starting from a specific exchange index - ASYNC VERSION"""
         try:
             if 'memory' not in st.session_state:
@@ -511,7 +534,8 @@ class LLMChatController:
         except Exception as e:
             print(f"Error clearing memory: {str(e)}")
 
-    async def _clear_audio_cache_after_index(self, bot_name: str, message_index: int):
+    @staticmethod
+    async def _clear_audio_cache_after_index( bot_name: str, message_index: int):
         """Clear audio cache for messages after a specific index - ASYNC VERSION"""
         try:
             if "audio_cache" not in st.session_state:

@@ -74,6 +74,10 @@ Requirements 📋
 Python 3.8+
 #limits
 
+
+--bot card expects dic , but the bots is a list, the bot card need to be updated to the new way in the home page as well
+
+
 --Key words not working
 -- add a overlay bg for the chats
 Add a scenario section: ✅
