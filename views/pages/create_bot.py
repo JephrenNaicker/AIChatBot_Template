@@ -10,6 +10,8 @@ NAME_LIMIT = 80
 GREETING_LIMIT = 1000
 DESC_LIMIT = 6000
 APPEARANCE_LIMIT = DESC_LIMIT
+
+
 async def _render_character_details_section(form_data):
     """Render the character details section"""
     st.subheader("🧍 Character Details")
@@ -39,7 +41,7 @@ def _render_avatar_section(form_data):
     st.write("**Avatar:**")
     avatar_option = st.radio(
         "Avatar Type",
-        ["Emoji", "Upload Image"],
+        ["Emoji", "Upload Image", "Generate with AI"],
         index=0,
         horizontal=True,
         key="avatar_option"
@@ -62,13 +64,34 @@ def _render_avatar_section(form_data):
             st.image(uploaded_file, width=100, caption="Uploaded Avatar")
             # Don't show emoji when image is uploaded
             form_data["appearance"]["avatar_emoji"] = None
+            form_data["appearance"]["generated_avatar"] = None
+            # Clear any confirmed avatar when switching to upload
+            if 'confirmed_avatar' in st.session_state:
+                st.session_state.confirmed_avatar = None
         else:
             # No file uploaded, fall back to emoji
             form_data["appearance"]["uploaded_file"] = None
             st.write(f"Preview: {form_data['basic']['emoji']}")
+
+    elif avatar_option == "Generate with AI":
+        # Use ONLY confirmed avatar in the main avatar section
+        if st.session_state.get('confirmed_avatar'):
+            st.image(st.session_state.confirmed_avatar, width=100, caption="AI Generated Avatar")
+            form_data["appearance"]["generated_avatar"] = st.session_state.confirmed_avatar
+            form_data["appearance"]["uploaded_file"] = None
+            form_data["appearance"]["avatar_emoji"] = None
+        else:
+            st.info("👆 Generate and confirm an avatar in the Appearance section above!")
+            form_data["appearance"]["uploaded_file"] = None
+            form_data["appearance"]["avatar_emoji"] = form_data["basic"]["emoji"]
+            form_data["appearance"]["generated_avatar"] = None
+
     else:
-        # Emoji selected
+        # Emoji selected - clear any generated/confirmed avatars
         form_data["appearance"]["uploaded_file"] = None
+        form_data["appearance"]["generated_avatar"] = None
+        if 'confirmed_avatar' in st.session_state:
+            st.session_state.confirmed_avatar = None
         form_data["appearance"]["avatar_emoji"] = form_data["basic"]["emoji"]
         st.write(f"Preview: {form_data['basic']['emoji']}")
 
@@ -78,6 +101,7 @@ def _render_avatar_section(form_data):
 async def _render_appearance_section(form_data):
     """Render the appearance section"""
     st.subheader("👀 Physical Appearance")
+
     appearance_col, enhance_col = st.columns([0.9, 0.1])
     with appearance_col:
         st.markdown('<div class="text-area-container">', unsafe_allow_html=True)
@@ -104,6 +128,87 @@ async def _render_appearance_section(form_data):
                 st.rerun()
 
     form_data["appearance"]["description"] = st.session_state.get("appearance_text", appearance_text)
+
+    # Add avatar generation button if AI avatar is selected - MOVED TO BOTTOM
+    if st.session_state.get("avatar_option") == "Generate with AI":
+        st.markdown("---")
+
+        # Display areas in two columns for clear separation
+        col1, col2 = st.columns(2)
+
+        with col1:
+            st.subheader("🔄 AI Generated Avatar")
+            # Display latest generated avatar (preview - dynamic)
+            if st.session_state.get('generated_avatar'):
+                st.image(st.session_state.generated_avatar, width=150, caption="Latest Generated Preview")
+
+                # Confirm button for the generated avatar
+                if st.button("✅ Confirm This Avatar", key="confirm_avatar", type="primary"):
+                    st.session_state.confirmed_avatar = st.session_state.generated_avatar
+                    st.session_state.generated_avatar = None
+                    st.success("Avatar confirmed!")
+                    st.rerun()
+            else:
+                st.info("No avatar generated yet")
+
+            # Generate new avatar button
+            if st.button("🎨 Generate New Avatar", key="generate_avatar_btn"):
+                # Get the current values directly from the form data and session state
+                character_name = form_data["basic"]["name"].strip()
+                appearance_desc = form_data["appearance"]["description"].strip()
+
+                # Validate inputs
+                if not character_name:
+                    st.error("❌ Please provide a character name first")
+                    st.stop()
+
+                if not appearance_desc:
+                    st.error("❌ Please provide a physical appearance description first")
+                    st.stop()
+
+                if len(appearance_desc) < 10:
+                    st.warning(
+                        "📝 For best results, please provide a more detailed appearance description (at least 10 characters)")
+                    st.stop()
+
+                # If validation passes, generate the avatar
+                with st.spinner("Generating avatar with AI..."):
+                    try:
+                        image_controller = ImageController()
+
+                        # Generate the avatar
+                        generated_image, error = image_controller.generate_avatar(
+                            character_name,
+                            appearance_desc
+                        )
+
+                        if generated_image:
+                            # Convert PIL Image to bytes for session state storage
+                            from io import BytesIO
+                            import base64
+
+                            buffered = BytesIO()
+                            generated_image.save(buffered, format="PNG")
+                            img_str = base64.b64encode(buffered.getvalue()).decode()
+
+                            # Set as generated avatar (preview) - does NOT affect confirmed avatar
+                            st.session_state.generated_avatar = f"data:image/png;base64,{img_str}"
+                            st.success("New avatar generated! Click 'Confirm' to use it.")
+                            st.rerun()
+                        else:
+                            st.error(f"❌ Failed to generate avatar: {error}")
+                    except Exception as e:
+                        st.error(f"❌ Error generating avatar: {str(e)}")
+
+        with col2:
+            st.subheader("✅ Confirmed Avatar")
+            # Display current confirmed avatar (static - only changes when confirmed)
+            if st.session_state.get('confirmed_avatar'):
+                st.image(st.session_state.confirmed_avatar, width=150, caption="Confirmed Avatar")
+                st.success("✓ This avatar will be used for your character")
+            else:
+                st.info("No avatar confirmed yet")
+
     return form_data
 
 async def _render_background_section(form_data):

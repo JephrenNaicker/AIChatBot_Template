@@ -58,7 +58,7 @@ class ImageController:
     def generate_avatar(self, character_name, appearance_desc, style="anime style"):
         """Generate avatar specifically for character with optimized settings"""
         # Optimized prompt for avatar generation
-        prompt = f"headshot portrait of {character_name}, {appearance_desc}, {style}, beautiful detailed eyes, face focus, cute, masterpiece, best quality"
+        prompt = f"Waist-up portrait of {character_name}, {appearance_desc}, {style}, beautiful detailed eyes, face focus, cute, masterpiece, best quality"
 
         # Negative prompt to avoid common issues
         negative_prompt = "ugly, duplicate, morbid, mutilated, extra fingers, mutated hands, poorly drawn hands, poorly drawn face, deformed, blurry, bad anatomy, bad proportions, extra limbs, cloned face, disfigured, gross proportions, malformed limbs, missing arms, missing legs, extra arms, extra legs, fused fingers, too many fingers, long neck"
