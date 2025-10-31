@@ -121,25 +121,7 @@ async def render_voice_ui(voice_service):
                 key=f"preview_{preview['time'].timestamp()}"
             )
 
-    # Section 2: Assign Voice to Bot (if applicable)
-    if 'user_bots' in st.session_state and st.session_state.user_bots:
-        with st.expander("🤖 Assign Voice to Bot"):
-            selected_bot = st.selectbox(
-                "Select Bot",
-                options=[bot["name"] for bot in st.session_state.user_bots],
-                key="voice_bot_selection"
-            )
-
-            assigned_emotion = st.selectbox(
-                "Voice Profile",
-                options=voice_service.get_available_emotions(),
-                key="voice_assignment_emotion"
-            )
-
-            if st.button("Assign Voice", key="assign_voice"):
-                st.warning("Voice assignment to bots is not implemented yet")
-
-    # Section 3: Voice Management
+    # Section 2: Voice Management (removed bot assignment)
     with st.expander("⚙️ Voice Profiles"):
         st.write("Available voice profiles:")
         for emotion in voice_service.get_available_emotions():

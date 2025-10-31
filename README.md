@@ -73,14 +73,9 @@ fluffy_app/
 Requirements 📋
 Python 3.8+
 #limits
-
-
---bot card expects dic , but the bots is a list, the bot card need to be updated to the new way in the home page as well
-
-
---Key words not working
+--git hub not showing commits
 -- add a overlay bg for the chats
-Add a scenario section: ✅
+
 Image location thing, and the mood thing 
 --Voice getting gene auto , should be gen only if user wants. and make it asyc as cant countiue the chat
 --deleting a bot is stuck -partly, seems if the name is the same , the user histroy comes back in the chat
@@ -88,8 +83,7 @@ Image location thing, and the mood thing
 --update home filter by tags and news bots
 --wasited space layout needs to change, the chat page closer to the side bar and have another page on the rightside space
 --have the chat now with in the bot card , but st might  not be enable to do that, also add counter top coner of conv
---user edit message ✅
---regen is broken ✅
+
 --View page before chat
 --Login page
 --create the admin side

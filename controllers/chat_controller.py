@@ -274,13 +274,13 @@ class LLMChatController:
             )
 
             # Create the full prompt with bot personality and both histories
-            prompt_template = f"""You are {bot.name} ({bot.emoji}), {bot.desc}.  # CHANGED: bot['name'] to bot.name, bot['emoji'] to bot.emoji
+            prompt_template = f"""You are {bot.name} ({bot.emoji}), {bot.desc}.
 
                 [Your Personality Rules]
-                - Always respond as {bot.name}  # CHANGED: bot['name'] to bot.name
-                - Traits: {', '.join(bot.personality.get('traits', []))}  # CHANGED: bot['personality'] to bot.personality
-                - Speech: {bot.personality.get('speech_pattern', 'neutral')}  # CHANGED: bot['personality'] to bot.personality
-                - Quirks: {', '.join(bot.personality.get('quirks', []))}  # CHANGED: bot['personality'] to bot.personality
+                - Always respond as {bot.name} 
+                - Traits: {', '.join(bot.personality.get('traits', []))} 
+                - Speech: {bot.personality.get('speech_pattern', 'neutral')}
+                - Quirks: {', '.join(bot.personality.get('quirks', []))}
 
                 [Group Conversation History]
                 {shared_history}
@@ -290,7 +290,7 @@ class LLMChatController:
 
                 User: {prompt}
 
-                {bot.name}:"""  # CHANGED: bot['name'] to bot.name
+                {bot.name}:"""
 
             # Generate response
             response = self.llm.invoke(prompt_template)
