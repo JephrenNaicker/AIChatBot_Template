@@ -379,14 +379,11 @@ def _render_voice_options(form_data, bot: Bot):
 def _render_status_section(form_data, bot: Bot):
     """Render the status section"""
     st.subheader("🔄 Status")
-    status_index = 0 if bot.status == "draft" else 1
-    form_data["status"] = st.radio(
-        "Initial Status",
-        ["Draft", "Published"],
-        index=status_index,
-        horizontal=True,
-        help="Draft: Only visible to you | Published: Visible to all users"
-    ).lower()
+    form_data["is_public"] = st.toggle(
+        "Make Public",
+        value=bot.is_public,
+        help="Off: Only visible to you (Draft) | On: Visible to all users (Published)"
+    )
     return form_data
 
 
@@ -458,10 +455,11 @@ async def edit_bot_page():
     form_data = {
         "basic": {},
         "appearance": {},
-        "personality": {},
+        "personality": {"tone": bot.personality.get("tone", "Friendly")},
         "tags": [],
         "voice": {"enabled": False},
-        "scenario": ""
+        "scenario": "",
+        "is_public": bot.is_public
     }
 
     # Render all sections
@@ -498,10 +496,10 @@ async def edit_bot_page():
                         "desc": form_data["basic"]["desc"]
                     },
                     "tags": form_data["tags"],
-                    "status": form_data["status"],
+                    "is_public": form_data["is_public"],
                     "scenario": form_data["scenario"],
                     "personality": {
-                        "tone": bot.personality.get("tone", "Friendly"),  # Preserve existing tone
+                        "tone": bot.personality.get("tone", "Friendly"),
                         "traits": form_data["personality"]["traits"],
                         "greeting": form_data["personality"]["greeting"]
                     },

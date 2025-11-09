@@ -22,6 +22,61 @@ PROFILE_SCHEMA = {
     "created_at": {"type": str, "editable": False}
 }
 
+DEFAULT_LLM_CONFIG = {
+    "model": "llama3:latest",
+    "temperature": 0.7,
+    "num_predict": 2048
+}
+
+# For Future DEV: Available models for selection in UI
+AVAILABLE_MODELS = [
+    "llama3:latest",
+    "llama3:8b",
+    "mistral:latest",
+    "codellama:latest",
+    "phi3:latest",
+    "qwen2:latest",
+    "gemma2:latest"
+]
+
+
+# Model presets for different bot types
+MODEL_PRESETS = {
+    "creative": {
+        "temperature": 0.8,
+        "num_predict": 4096
+    },
+    "technical": {
+        "temperature": 0.3,
+        "num_predict": 4096
+    },
+    "balanced": {
+        "temperature": 0.7,
+        "num_predict": 2048
+    },
+    "precise": {
+        "temperature": 0.5,
+        "num_predict": 2048
+    },
+    "poetic": {
+        "temperature": 0.9,
+        "num_predict": 1024
+    }
+}
+
+
+# Helper function to create model config e.g ("technical", "codellama:latest"),
+def create_model_config(preset: str = "balanced", model: str = None) -> Dict[str, Any]:
+    """Create a model configuration using presets"""
+    base_config = DEFAULT_LLM_CONFIG.copy()
+    preset_config = MODEL_PRESETS.get(preset, {})
+
+    base_config.update(preset_config)
+    if model:
+        base_config["model"] = model
+
+    return base_config
+
 DEFAULT_BOTS = [
     Bot(
         name="StoryBot",
@@ -33,6 +88,7 @@ DEFAULT_BOTS = [
             "traits": ["Creative", "Imaginative"],
             "greeting": "Once upon a time, there was a curious traveler like you..."
         },
+        model_config=create_model_config("creative"),
         custom=False
     ),
     Bot(
@@ -45,6 +101,7 @@ DEFAULT_BOTS = [
             "traits": ["Technical", "Futuristic"],
             "greeting": "Initializing interstellar protocol. Ready for quantum adventures?"
         },
+        model_config=create_model_config("balanced"),
         custom=False
     ),
     Bot(
@@ -57,6 +114,7 @@ DEFAULT_BOTS = [
             "traits": ["Suspenseful", "Clever"],
             "greeting": "The game is afoot... But can you spot the red herring?"
         },
+        model_config=create_model_config("precise"),
         custom=False
     ),
     Bot(
@@ -69,6 +127,7 @@ DEFAULT_BOTS = [
             "traits": ["Educational", "Insightful"],
             "greeting": "In the year 1492... But let us travel further back in time, shall we?"
         },
+        model_config=create_model_config("precise"),
         custom=False
     ),
     Bot(
@@ -81,6 +140,7 @@ DEFAULT_BOTS = [
             "traits": ["Logical", "Efficient"],
             "greeting": "// Ready to debug your next big idea?"
         },
+model_config=create_model_config("technical", "llama3:latest"),
         custom=False
     ),
     Bot(
@@ -93,6 +153,7 @@ DEFAULT_BOTS = [
             "traits": ["Expressive", "Metaphorical"],
             "greeting": "In whispers of wind, I craft verse — shall we write together?"
         },
+        model_config=create_model_config("poetic"),
         custom=False
     )
 ]

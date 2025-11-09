@@ -8,13 +8,13 @@ from langchain.prompts import PromptTemplate
 from langchain.schema.runnable import RunnableSequence
 from langchain_core.exceptions import OutputParserException, LangChainException
 from langchain_community.llms import Ollama
-from config import get_default_bots
+from config import get_default_bots,DEFAULT_LLM_CONFIG
 import asyncio
 
 
 class LLMChatController:
     def __init__(self):
-        self.llm = Ollama(model="llama3:latest")
+        self.llm = Ollama(**DEFAULT_LLM_CONFIG)
         self._init_session_state()
         self._init_dialog_chain()
         self._init_memory_buffer()

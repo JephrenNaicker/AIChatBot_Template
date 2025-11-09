@@ -97,7 +97,6 @@ def _render_avatar_section(form_data):
 
     return form_data
 
-
 async def _render_appearance_section(form_data):
     """Render the appearance section"""
     st.subheader("👀 Physical Appearance")
@@ -451,7 +450,7 @@ def _render_voice_options(form_data):
 def _render_status_section(form_data):
     """Render the status section"""
     st.subheader("🔄 Status")
-    form_data["status"] = st.radio(
+    form_data["is_public"] = st.radio(
         "Initial Status",
         ["Draft", "Published"],
         index=0,

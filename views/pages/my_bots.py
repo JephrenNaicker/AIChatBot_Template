@@ -12,7 +12,7 @@ async def my_bots_page():
         if action["type"] == "delete":
             BotManager._delete_bot(action["bot_name"])
         elif action["type"] == "update_status":
-            BotManager._update_bot_status(action["bot_name"], action["new_status"])
+            BotManager._update_bot_status(action["bot_name"], action["is_public"])
         del st.session_state.pending_bot_action
 
     # Inject CSS
@@ -25,8 +25,8 @@ async def my_bots_page():
         BotManager.show_empty_state()
         return
 
-    # Status filter
-    filtered_bots = BotManager.filter_bots_by_status()
+    # Status filter - you'll need to update this method too if it exists
+    filtered_bots = BotManager.filter_bots_by_status()  # This method might need updating too
 
     if not filtered_bots:
         st.info(f"No bots match the filter: {st.session_state.get('bot_status_filter', 'All')}")

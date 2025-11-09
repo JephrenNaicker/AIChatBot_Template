@@ -3,7 +3,7 @@ import streamlit as st
 import os
 import asyncio
 import base64
-
+from controllers.bot_manager_controller import BotManager
 
 def bot_card(bot, mode="home", show_actions=True, key_suffix="", on_chat=None, on_edit=None, on_delete=None,
              on_publish=None):
@@ -82,16 +82,16 @@ def _manage_bot_card(bot, show_actions, unique_key, on_chat, on_edit, on_delete,
     # Get avatar HTML for background
     avatar_html = _get_portrait_avatar_html(bot)
 
-    # Status badge
-    status = bot.status
-    status_color = "#f39c12" if status == "draft" else "#2ecc71"
-    status_text = "DRAFT" if status == "draft" else "PUBLISHED"
+    # Status badge - CHANGED: using is_public instead of status
+    is_public = bot.is_public
+    status_color = "#f39c12" if not is_public else "#2ecc71"
+    status_text = "DRAFT" if not is_public else "PUBLISHED"
 
     # Create the HTML content
     html_content = f"""
     <div class="portrait-card">
         {avatar_html}
-        <span class="status-badge status-{status}" style="background: {status_color};">{status_text}</span>
+        <span class="status-badge status-{'draft' if not is_public else 'published'}" style="background: {status_color};">{status_text}</span>
         <div class="portrait-card-content">
             <div class="portrait-card-name">{bot.name}</div>
             <div class="portrait-card-desc">{bot.desc[:100]}{'...' if len(bot.desc) > 100 else ''}</div>
@@ -123,27 +123,24 @@ def _manage_bot_card(bot, show_actions, unique_key, on_chat, on_edit, on_delete,
         col3, col4 = st.columns(2)
 
         with col3:
-            if status == "draft":
+            if not is_public:  # CHANGED: status == "draft" -> not is_public
                 if st.button("🚀 Publish", key=f"publish_{unique_key}", use_container_width=True):
                     if on_publish:
                         on_publish(bot)
                     else:
-                        from controllers.bot_manager_controller import BotManager
-                        BotManager._update_bot_status(bot.name, "published")
+                        BotManager.update_bot_status(bot.name, True)  # CHANGED: "published" -> True
             else:
                 if st.button("📦 Unpublish", key=f"unpublish_{unique_key}", use_container_width=True):
                     if on_publish:  # Reuse on_publish for unpublish too
-                        on_publish(bot, "draft")
+                        on_publish(bot, False)
                     else:
-                        from controllers.bot_manager_controller import BotManager
-                        BotManager._update_bot_status(bot.name, "draft")
+                        BotManager.update_bot_status(bot.name, False)
 
         with col4:
             if st.button("🗑️ Delete", key=f"delete_{unique_key}", use_container_width=True):
                 if on_delete:
                     on_delete(bot)
                 else:
-                    from controllers.bot_manager_controller import BotManager
                     BotManager._delete_bot(bot.name)
 
 
@@ -159,7 +156,7 @@ def _default_bot_card(bot, show_actions, unique_key, on_chat):
 
             with cols[1]:
                 status_html = ""
-                if bot.status == "draft":
+                if not bot.is_public:  # CHANGED: bot.status == "draft" -> not bot.is_public
                     status_html = f'<span style="color: #f39c12; font-weight: bold; font-size: 0.8rem; margin-left: 8px;">DRAFT</span>'
 
                 st.markdown(

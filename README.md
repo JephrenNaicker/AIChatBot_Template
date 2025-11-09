@@ -76,6 +76,7 @@ Python 3.8+
 --git hub not showing commits
 -- add a overlay bg for the chats
 
+--Avaret imaage and background images on upload? or Ai Gen?
 Image location thing, and the mood thing 
 --Voice getting gene auto , should be gen only if user wants. and make it asyc as cant countiue the chat
 --deleting a bot is stuck -partly, seems if the name is the same , the user histroy comes back in the chat

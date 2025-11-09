@@ -1,7 +1,6 @@
 import streamlit as st
 from config import TAG_OPTIONS, PERSONALITY_TRAITS,DEFAULT_RULES,BOT_PRESETS
 from PIL import Image
-from components.bot_card import bot_card
 
 class BotManager:
 
@@ -32,13 +31,13 @@ class BotManager:
             return None
 
     @staticmethod
-    def _update_bot_status(bot_name, new_status):
-        """Update a bot's status in the user_bots list"""
+    def update_bot_status(bot_name, is_public):
+        """Update a bot's public status in the user_bots list"""
         for bot in st.session_state.user_bots:
             if bot.name == bot_name:
-                bot.status = new_status
-                st.toast(f"{bot_name} {'published' if new_status == 'published' else 'unpublished'}!",
-                         icon="🚀" if new_status == "published" else "📦")
+                bot.is_public = is_public  # CHANGED: status -> is_public
+                st.toast(f"{bot_name} {'published' if is_public else 'unpublished'}!",
+                         icon="🚀" if is_public else "📦")
                 st.rerun()
 
     @staticmethod
@@ -142,7 +141,7 @@ class BotManager:
                 emoji=form_data["basic"]["emoji"],
                 desc=form_data["basic"]["desc"],
                 tags=form_data["tags"],
-                status=form_data["status"],
+                is_public=form_data["is_public"],
                 scenario=form_data.get("scenario", ""),
                 personality={
                     "tone": form_data["personality"].get("tone", "Friendly"),
@@ -213,7 +212,7 @@ class BotManager:
 
     @staticmethod
     def _filter_bots_by_status():
-        """Filter bots based on status selection"""
+        """Filter bots based on public status selection"""
         status_filter = st.radio(
             "Show:",
             ["All", "Drafts", "Published"],
@@ -224,13 +223,16 @@ class BotManager:
         return [
             bot for bot in st.session_state.user_bots
             if status_filter == "All" or
-               (status_filter == "Drafts" and bot.status == "draft") or
-               (status_filter == "Published" and bot.status == "published")
+               (status_filter == "Drafts" and not bot.is_public) or  #not is_public
+               (status_filter == "Published" and bot.is_public)  #is_public
         ]
 
     @staticmethod
     def _display_bots_grid(bots):
         """Display bots in a responsive grid layout using the bot_card component"""
+        # Lazy import to avoid circular dependency
+        from components.bot_card import bot_card
+
         cols = st.columns(2)
 
         for i, bot in enumerate(bots):
@@ -253,12 +255,12 @@ class BotManager:
                         st.rerun()
 
                 with action_cols[2]:
-                    if bot.status == 'draft':
+                    if not bot.is_public:
                         if st.button("🚀", key=f"publish_{bot.name}_{i}", help="Publish", use_container_width=True):
                             st.session_state.pending_bot_action = {
                                 "type": "update_status",
                                 "bot_name": bot.name,
-                                "new_status": "published"
+                                "is_public": True  # CHANGED: new_status -> is_public
                             }
                     else:
                         if st.button("📦", key=f"unpublish_{bot.name}_{i}", help="Unpublish",
@@ -266,7 +268,7 @@ class BotManager:
                             st.session_state.pending_bot_action = {
                                 "type": "update_status",
                                 "bot_name": bot.name,
-                                "new_status": "draft"
+                                "is_public": False  # CHANGED: new_status -> is_public
                             }
 
                 # Delete button in a separate row
