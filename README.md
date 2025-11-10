@@ -46,8 +46,9 @@ fluffy_app/
 │   └── voice_controller.py
 ├── services/            # Utility classes
 │   ├── __init__.py
-│   ├── Image_Service.py #avatar Image Upload
-│   ├── utils.py         # Utils class
+│   ├── Image_Service.py  #avatar Image Upload
+│   ├── utils.py          # Utils class
+│   ├── bot_attribute_helper.py #bot attribute access across object/dict types 
 ├── views/               # UI/presentation layer
 │   ├── __init__.py
 │   ├── pages/           # Page components

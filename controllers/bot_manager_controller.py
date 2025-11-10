@@ -1,6 +1,7 @@
 import streamlit as st
-from config import TAG_OPTIONS, PERSONALITY_TRAITS,DEFAULT_RULES,BOT_PRESETS
-from PIL import Image
+
+from config import DEFAULT_RULES, BOT_PRESETS
+
 
 class BotManager:
 
@@ -130,77 +131,130 @@ class BotManager:
 
     @staticmethod
     async def _handle_form_submission(form_data):
-        """Handle form submission and bot creation using Bot object"""
+        """Orchestrate the form submission process"""
+        if not BotManager._validate_form_data(form_data):
+            return
+
+        # Create bot instance
+        new_bot = BotManager._create_bot_instance(form_data)
+
+        # Handle avatar setup
+        new_bot = await BotManager._setup_bot_avatar(new_bot, form_data)
+
+        # Handle voice configuration
+        new_bot = BotManager._setup_bot_voice(new_bot, form_data)
+
+        # Finalize bot creation
+        BotManager._finalize_bot_creation(new_bot)
+
+    @staticmethod
+    def _validate_form_data(form_data):
+        """Validate required form fields"""
         if not form_data["basic"]["name"]:
             st.error("Please give your bot a name")
+            return False
+        return True
+
+    @staticmethod
+    def _create_bot_instance(form_data):
+        """Create a new Bot instance from form data"""
+        from models.bot import Bot
+
+        return Bot(
+            name=form_data["basic"]["name"],
+            emoji=form_data["basic"]["emoji"],
+            desc=form_data["basic"]["desc"],
+            tags=form_data["tags"],
+            is_public=form_data["is_public"],
+            scenario=form_data.get("scenario", ""),
+            personality={
+                "tone": form_data["personality"].get("tone", "Friendly"),
+                "traits": form_data["personality"]["traits"],
+                "greeting": form_data["personality"]["greeting"]
+            },
+            system_rules=form_data["system_rules"] or DEFAULT_RULES,
+            appearance={
+                "description": form_data["appearance"]["description"],
+                "avatar_type": form_data["appearance"].get("avatar_type", "emoji"),
+                "avatar_data": None
+            },
+            creator=st.session_state.profile_data.get("username", "anonymous")
+        )
+
+    @staticmethod
+    async def _setup_bot_avatar(bot, form_data):
+        """Handle bot avatar configuration (emoji vs uploaded image)"""
+        avatar_type = form_data["appearance"].get("avatar_type")
+        uploaded_file = form_data["appearance"].get("uploaded_file")
+
+        if avatar_type == "Upload Image" and uploaded_file:
+            return await BotManager._handle_uploaded_avatar(bot, form_data)
         else:
-            # Create new Bot object instead of dictionary
-            from models.bot import Bot
-            new_bot = Bot(
-                name=form_data["basic"]["name"],
-                emoji=form_data["basic"]["emoji"],
-                desc=form_data["basic"]["desc"],
-                tags=form_data["tags"],
-                is_public=form_data["is_public"],
-                scenario=form_data.get("scenario", ""),
-                personality={
-                    "tone": form_data["personality"].get("tone", "Friendly"),
-                    "traits": form_data["personality"]["traits"],
-                    "greeting": form_data["personality"]["greeting"]
-                },
-                system_rules=form_data["system_rules"] or DEFAULT_RULES,
-                appearance={
-                    "description": form_data["appearance"]["description"],
-                    "avatar_type": form_data["appearance"].get("avatar_type", "emoji"),
-                    "avatar_data": None  # Initialize as None
-                },
-                creator=st.session_state.profile_data.get("username", "anonymous")
-            )
+            return BotManager._setup_emoji_avatar(bot, form_data)
 
-            # Handle avatar based on selection
-            if (form_data["appearance"].get("avatar_type") == "Upload Image" and
-                    form_data["appearance"].get("uploaded_file")):
-                uploaded_file = form_data["appearance"]["uploaded_file"]
-                file_info = await BotManager._handle_uploaded_file(uploaded_file, form_data["basic"]["name"])
+    @staticmethod
+    async def _handle_uploaded_avatar(bot, form_data):
+        """Process uploaded avatar image"""
+        uploaded_file = form_data["appearance"]["uploaded_file"]
+        file_info = await BotManager._handle_uploaded_file(
+            uploaded_file, form_data["basic"]["name"]
+        )
 
-                if file_info:
-                    new_bot.appearance["avatar_data"] = file_info
-                    new_bot.appearance["avatar_type"] = "uploaded"
-                    new_bot.emoji = None
-                    st.toast("Avatar image saved successfully!", icon="✅")
-                else:
-                    new_bot.appearance["avatar_data"] = None
-                    new_bot.appearance["avatar_type"] = "emoji"
-                    new_bot.emoji = form_data["basic"]["emoji"]
-                    st.toast("Failed to save avatar image, using emoji instead", icon="⚠️")
-            else:
-                # Use emoji as avatar
-                new_bot.appearance["avatar_data"] = None
-                new_bot.appearance["avatar_type"] = "emoji"
-                new_bot.emoji = form_data["basic"]["emoji"]
+        if file_info:
+            bot.appearance["avatar_data"] = file_info
+            bot.appearance["avatar_type"] = "uploaded"
+            bot.emoji = None
+            st.toast("Avatar image saved successfully!", icon="✅")
+        else:
+            # Fallback to emoji if upload fails
+            bot = BotManager._setup_emoji_avatar(bot, form_data)
+            st.toast("Failed to save avatar image, using emoji instead", icon="⚠️")
 
-            # Handle voice options
-            if form_data.get("voice", {}).get("enabled", False):
-                new_bot.voice = {
-                    "enabled": True,
-                    "emotion": form_data["voice"]["emotion"]
-                }
-                if "voice" not in new_bot.tags:
-                    new_bot.tags.append("voice")
-                st.toast(f"Voice enabled with {form_data['voice']['emotion']} emotion!", icon="🔊")
-            else:
-                new_bot.voice = {"enabled": False}
-                new_bot.tags = [tag for tag in new_bot.tags if tag != "voice"]
-                st.toast("Voice not enabled for this character", icon="🔇")
+        return bot
 
-            st.session_state.user_bots.append(new_bot)
-            st.success(f"Character '{new_bot.name}' created successfully!")
+    @staticmethod
+    def _setup_emoji_avatar(bot, form_data):
+        """Configure bot to use emoji as avatar"""
+        bot.appearance["avatar_data"] = None
+        bot.appearance["avatar_type"] = "emoji"
+        bot.emoji = form_data["basic"]["emoji"]
+        return bot
 
-            if 'preset_data' in st.session_state:
-                del st.session_state.preset_data
+    @staticmethod
+    def _setup_bot_voice(bot, form_data):
+        """Configure bot voice settings"""
+        voice_config = form_data.get("voice", {})
 
-            st.session_state.page = "my_bots"
-            st.rerun()
+        if voice_config.get("enabled", False):
+            bot.voice = {
+                "enabled": True,
+                "emotion": voice_config["emotion"]
+            }
+            # Ensure voice tag is present
+            if "voice" not in bot.tags:
+                bot.tags.append("voice")
+            st.toast(f"Voice enabled with {voice_config['emotion']} emotion!", icon="🔊")
+        else:
+            bot.voice = {"enabled": False}
+            # Remove voice tag if present
+            bot.tags = [tag for tag in bot.tags if tag != "voice"]
+            st.toast("Voice not enabled for this character", icon="🔇")
+
+        return bot
+
+    @staticmethod
+    def _finalize_bot_creation(bot):
+        """Complete the bot creation process"""
+        st.session_state.user_bots.append(bot)
+        st.success(f"Character '{bot.name}' created successfully!")
+
+        # Clean up preset data if it exists
+        if 'preset_data' in st.session_state:
+            del st.session_state.preset_data
+
+        # Navigate back to bots list
+        st.session_state.page = "my_bots"
+        st.rerun()
 
     @staticmethod
     def _show_empty_state():

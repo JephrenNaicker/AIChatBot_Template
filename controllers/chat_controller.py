@@ -9,12 +9,14 @@ from langchain.schema.runnable import RunnableSequence
 from langchain_core.exceptions import OutputParserException, LangChainException
 from langchain_community.llms import Ollama
 from config import get_default_bots,DEFAULT_LLM_CONFIG
+from services.bot_attribute_helper import BotAttributeHelper
 import asyncio
 
 
 class LLMChatController:
     def __init__(self):
         self.llm = Ollama(**DEFAULT_LLM_CONFIG)
+        self.dialog_chain_factory = DialogChainFactory(self.llm)
         self._init_session_state()
         self._init_dialog_chain()
         self._init_memory_buffer()
@@ -41,118 +43,11 @@ class LLMChatController:
             }
 
     def _init_dialog_chain(self):
+        """Initialize dialog chain using the factory pattern"""
         bot_name = st.session_state.get('selected_bot', '')
-
-        # Combine default bots and user bots
         all_bots = get_default_bots() + st.session_state.user_bots
 
-        # Helper function to safely get bot attributes
-        def _get_bot_attr(bot, attr, default=None):
-            if hasattr(bot, attr):
-                return getattr(bot, attr, default)
-            elif isinstance(bot, dict):
-                return bot.get(attr, default)
-            return default
-
-        current_bot = next((b for b in all_bots if _get_bot_attr(b, 'name') == bot_name), None)
-
-        if current_bot:
-            # Handle both Bot objects and dictionaries
-            personality = _get_bot_attr(current_bot, 'personality', {})
-
-            # Default bots don't have system_rules, so use DEFAULT_RULES from config
-            system_rules = _get_bot_attr(current_bot, 'system_rules', "")
-            if not system_rules:
-                from config import DEFAULT_RULES
-                system_rules = DEFAULT_RULES
-
-            # Clean up the system_rules to remove any empty variables
-            if system_rules and isinstance(system_rules, str):
-                # Remove any empty lines or problematic characters
-                system_rules = "\n".join([line for line in system_rules.split("\n") if line.strip()])
-            else:
-                system_rules = ""
-
-            # Get scenario
-            scenario = _get_bot_attr(current_bot, 'scenario', '')
-            scenario_context = f"\n[Current Scenario]\n{scenario}\n" if scenario else ""
-
-            # Clean up personality traits and quirks
-            traits = _get_bot_attr(personality, 'traits', [])
-            if isinstance(traits, str):
-                traits = [t.strip() for t in traits.split(',') if t.strip()]
-            traits_str = ', '.join([t for t in traits if t]) or "friendly"
-
-            quirks = _get_bot_attr(personality, 'quirks', [])
-            if isinstance(quirks, str):
-                quirks = [q.strip() for q in quirks.split(',') if q.strip()]
-            quirks_str = ', '.join([q for q in quirks if q]) or "none"
-
-            speech_pattern = _get_bot_attr(personality, 'speech_pattern', 'neutral') or "neutral"
-            tone = _get_bot_attr(personality, 'tone', 'neutral') or "neutral"
-
-            # Get description - handle different possible field names
-            desc = _get_bot_attr(current_bot, 'desc') or _get_bot_attr(current_bot,
-                                                                       'description') or "A helpful AI assistant"
-            emoji = _get_bot_attr(current_bot, 'emoji', '🤖')
-
-            # Unified template that works for both single and group chats
-            prompt_template = f"""You are {bot_name} ({emoji}), {desc}.{scenario_context}
-
-    [CHARACTER DIRECTIVES]
-    {system_rules}
-
-    [Your Personality Rules]
-    - Always respond as {bot_name}
-    - Tone: {tone}
-    - Traits: {traits_str}
-    - Speech: {speech_pattern}
-    - Quirks: {quirks_str}
-    - Never break character!
-    - Never mention 'user_input' or ask for input - just respond as your character
-
-    [Your Memory]
-    {{chat_history}}
-
-    User: {{user_input}}
-
-    {bot_name}:"""
-
-            # Debug: Print the template to check for issues
-            print(f"DEBUG: Prompt template for {bot_name}:")
-            print(prompt_template)
-
-            # Create the prompt template with proper input variables
-            try:
-                prompt = PromptTemplate(
-                    input_variables=["user_input", "chat_history"],
-                    template=prompt_template
-                )
-
-                # Verify the template has the correct variables
-                print(f"DEBUG: Template input variables: {prompt.input_variables}")
-
-                self.dialog_chain = RunnableSequence(
-                    prompt | self.llm
-                )
-            except Exception as e:
-                print(f"ERROR creating prompt template: {str(e)}")
-                # Fallback to simple template
-                self.dialog_chain = RunnableSequence(
-                    PromptTemplate(
-                        input_variables=["user_input"],
-                        template="Respond to the user: {{user_input}}"
-                    ) | self.llm
-                )
-        else:
-            # Fallback if bot not found
-            print(f"WARNING: Bot '{bot_name}' not found in BOTS or user_bots")
-            self.dialog_chain = RunnableSequence(
-                PromptTemplate(
-                    input_variables=["user_input"],
-                    template="Respond to the user: {{user_input}}"
-                ) | self.llm
-            )
+        self.dialog_chain = self.dialog_chain_factory.create_chain(bot_name, all_bots)
 
     @staticmethod
     def _process_memory(user_input: str, response: str):
@@ -603,3 +498,92 @@ class LLMChatController:
         except Exception as e:
             print(f"Error regenerating after edit: {str(e)}")
             raise
+
+
+class DialogChainFactory:
+    """Factory class for creating dialog chains"""
+
+    def __init__(self, llm):
+        self.llm = llm
+
+    def create_chain(self, bot_name, all_bots):
+        """Create a dialog chain for the specified bot"""
+        prompt_template = self._build_prompt_template(bot_name, all_bots)
+        return self._build_runnable_sequence(prompt_template)
+
+    def _build_prompt_template(self, bot_name, all_bots):
+        """Build the complete prompt template"""
+        current_bot = BotAttributeHelper.find_bot_by_name(bot_name, all_bots)
+
+        if not current_bot:
+            print(f"WARNING: Bot '{bot_name}' not found")
+            return "Respond to the user: {{user_input}}"
+
+        try:
+            personality = BotAttributeHelper.get_bot_attr(current_bot, 'personality', {})
+            system_rules = BotAttributeHelper.get_system_rules(current_bot, DEFAULT_RULES)
+            scenario_context = self._build_scenario_context(current_bot)
+
+            return self._assemble_template(current_bot, personality, system_rules, scenario_context)
+
+        except Exception as e:
+            print(f"ERROR building prompt template: {str(e)}")
+            return "Respond to the user: {{user_input}}"
+
+    def _build_scenario_context(self, bot):
+        """Build scenario context string"""
+        scenario = BotAttributeHelper.get_bot_attr(bot, 'scenario', '')
+        return f"\n[Current Scenario]\n{scenario}\n" if scenario else ""
+
+    def _assemble_template(self, bot, personality, system_rules, scenario_context):
+        """Assemble the final prompt template"""
+        desc = BotAttributeHelper.get_bot_description(bot)
+        emoji = BotAttributeHelper.get_bot_attr(bot, 'emoji', '🤖')
+
+        traits = ', '.join(BotAttributeHelper.get_personality_traits(personality, 'traits', []) or ["friendly"])
+        quirks = ', '.join(BotAttributeHelper.get_personality_traits(personality, 'quirks', []) or ["none"])
+        speech_pattern = personality.get('speech_pattern', 'neutral') if isinstance(personality, dict) else getattr(
+            personality, 'speech_pattern', 'neutral')
+        tone = personality.get('tone', 'neutral') if isinstance(personality, dict) else getattr(personality, 'tone',
+                                                                                                'neutral')
+
+        return f"""You are {bot.name} ({emoji}), {desc}.{scenario_context}
+
+[CHARACTER DIRECTIVES]
+{system_rules}
+
+[Your Personality Rules]
+- Always respond as {bot.name}
+- Tone: {tone}
+- Traits: {traits}
+- Speech: {speech_pattern}
+- Quirks: {quirks}
+- Never break character!
+- Never mention 'user_input' or ask for input - just respond as your character
+
+[Your Memory]
+{{chat_history}}
+
+User: {{user_input}}
+
+{bot.name}:"""
+
+    def _build_runnable_sequence(self, prompt_template):
+        """Build the LangChain runnable sequence"""
+        try:
+            prompt = PromptTemplate(
+                input_variables=["user_input", "chat_history"],
+                template=prompt_template
+            )
+
+            print(f"DEBUG: Template input variables: {prompt.input_variables}")
+            return RunnableSequence(prompt | self.llm)
+
+        except Exception as e:
+            print(f"ERROR creating prompt template: {str(e)}")
+            return RunnableSequence(
+                PromptTemplate(
+                    input_variables=["user_input"],
+                    template="Respond to the user: {{user_input}}"
+                ) | self.llm
+            )
