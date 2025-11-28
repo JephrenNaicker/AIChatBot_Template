@@ -8,7 +8,7 @@ from langchain.prompts import PromptTemplate
 from langchain.schema.runnable import RunnableSequence
 from langchain_core.exceptions import OutputParserException, LangChainException
 from langchain_community.llms import Ollama
-from config import get_default_bots,DEFAULT_LLM_CONFIG
+from config import get_default_bots, DEFAULT_LLM_CONFIG, DEFAULT_RULES
 from services.bot_attribute_helper import BotAttributeHelper
 import asyncio
 

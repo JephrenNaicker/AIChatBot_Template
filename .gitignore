@@ -175,12 +175,12 @@ cython_debug/
 
 
 # Ignore all contents of these folders
-Audio/Output/*
-avatars/*
+audio/output/*
+images/avatars/*
 
 # But do not ignore the folders themselves
-!Audio/Output/.gitkeep
-!avatars/.gitkeep
+!audio/output/.gitkeep
+!images/avatars/.gitkeep
 
 # # Ignore everything in this directory
 # /*

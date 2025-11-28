@@ -34,6 +34,12 @@ fluffy_app/
 ├── __init__.py
 ├── main.py               # Entry point (contains the main() function)
 ├── config.py             # Constants and configurations
+├── audio/ 
+│   ├── Output/
+│   └── RefAudio/
+├── images/ 
+│   ├── avaters/
+│   └── backgrounds/
 ├── models/               # Data models/schemas
 │   ├── __init__.py
 │   ├── bot.py           # Bot data structure
@@ -57,7 +63,7 @@ fluffy_app/
 │   ├── chat.py
 │   ├── bot_setup.py
 │   ├── create_bot.py
-│   ├── edit_bot.py
+│   ├── edit_bot.py[controllers](controllers)
 │   ├── generate_concept.py
 │   ├── my_bots.py
 │   ├── profile.py
@@ -76,7 +82,7 @@ Python 3.8+
 #limits
 --git hub not showing commits
 -- add a overlay bg for the chats
-
+--split into api calls and UI now - after checking the background, and it seems new support for comfyUi is added
 --Avaret imaage and background images on upload? or Ai Gen?
 Image location thing, and the mood thing 
 --Voice getting gene auto , should be gen only if user wants. and make it asyc as cant countiue the chat

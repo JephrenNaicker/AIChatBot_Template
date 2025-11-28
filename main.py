@@ -26,7 +26,7 @@ from views.pages.image_studio import image_studio_page
 from components.bot_card import get_bot_card_css
 
 # Initialize the service (add to your service initialization section)
-image_service = ImageService(upload_dir="avatars", max_size_mb=5)
+image_service = ImageService(upload_dir="images/avatars", max_size_mb=5)
 st.session_state.image_service = image_service
 
 
@@ -49,7 +49,7 @@ def initialize_session_state():
     if 'memory' not in st.session_state:
         st.session_state.memory = initialize_chat_memory()
     if 'image_service' not in st.session_state:
-        st.session_state.image_service = ImageService(upload_dir="avatars", max_size_mb=5)
+        st.session_state.image_service = ImageService(upload_dir="images/avatars", max_size_mb=5)
     if 'voice_service' not in st.session_state:
         try:
             st.session_state.voice_service = VoiceService()

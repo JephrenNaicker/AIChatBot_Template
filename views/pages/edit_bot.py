@@ -41,14 +41,14 @@ def _render_avatar_section(form_data, bot: Bot):
 
     # Determine initial avatar type
     avatar_type_index = 0
-    if bot.appearance.get("avatar_type") == "Upload Image" or bot.appearance.get("avatar_data"):
+    if bot.appearance.get("avatar_type") == "uploaded" or (bot.appearance.get("avatar_data") and isinstance(bot.appearance.get("avatar_data"), dict)):
         avatar_type_index = 1
-    elif bot.appearance.get("avatar_type") == "Generate with AI" or bot.appearance.get("generated_avatar"):
+    elif bot.appearance.get("avatar_type") == "ai_generated" or st.session_state.get('confirmed_avatar'):
         avatar_type_index = 2
 
     avatar_option = st.radio(
         "Avatar Type",
-        ["Emoji", "Upload Image", "Generate with AI"],  # Add AI option
+        ["Emoji", "Upload Image", "Generate with AI"],
         index=avatar_type_index,
         horizontal=True,
         key="avatar_option"
@@ -71,12 +71,11 @@ def _render_avatar_section(form_data, bot: Bot):
             st.image(uploaded_file, width=100, caption="Uploaded Avatar")
             # Don't show emoji when image is uploaded
             form_data["appearance"]["avatar_emoji"] = None
-            form_data["appearance"]["generated_avatar"] = None
             # Clear any confirmed avatar when switching to upload
             if 'confirmed_avatar' in st.session_state:
                 st.session_state.confirmed_avatar = None
-        elif bot.appearance.get("avatar_data"):
-            # Show existing image if available
+        elif bot.appearance.get("avatar_type") == "uploaded" and bot.appearance.get("avatar_data"):
+            # Show existing uploaded image if available
             avatar_data = bot.appearance.get("avatar_data", {})
             try:
                 if isinstance(avatar_data, dict):
@@ -101,25 +100,29 @@ def _render_avatar_section(form_data, bot: Bot):
         # Use ONLY confirmed avatar in the main avatar section
         if st.session_state.get('confirmed_avatar'):
             st.image(st.session_state.confirmed_avatar, width=100, caption="AI Generated Avatar")
-            form_data["appearance"]["generated_avatar"] = st.session_state.confirmed_avatar
             form_data["appearance"]["uploaded_file"] = None
             form_data["appearance"]["avatar_emoji"] = None
-        elif bot.appearance.get("generated_avatar"):
-            # Use existing generated avatar from bot data
-            st.image(bot.appearance.get("generated_avatar"), width=100, caption="AI Generated Avatar")
-            form_data["appearance"]["generated_avatar"] = bot.appearance.get("generated_avatar")
+        elif bot.appearance.get("avatar_type") == "ai_generated" and bot.appearance.get("avatar_data"):
+            # Show existing AI-generated avatar
+            avatar_data = bot.appearance.get("avatar_data", {})
+            if isinstance(avatar_data, dict):
+                filepath = avatar_data.get('filepath')
+                if filepath and os.path.exists(filepath):
+                    st.image(filepath, width=100, caption="Current AI Avatar")
+                else:
+                    st.info("👆 Generate and confirm an avatar in the Appearance section above!")
+            else:
+                st.info("👆 Generate and confirm an avatar in the Appearance section above!")
             form_data["appearance"]["uploaded_file"] = None
             form_data["appearance"]["avatar_emoji"] = None
         else:
             st.info("👆 Generate and confirm an avatar in the Appearance section above!")
             form_data["appearance"]["uploaded_file"] = None
             form_data["appearance"]["avatar_emoji"] = form_data["basic"]["emoji"]
-            form_data["appearance"]["generated_avatar"] = None
 
     else:
         # Emoji selected - clear any generated/confirmed avatars
         form_data["appearance"]["uploaded_file"] = None
-        form_data["appearance"]["generated_avatar"] = None
         if 'confirmed_avatar' in st.session_state:
             st.session_state.confirmed_avatar = None
         form_data["appearance"]["avatar_emoji"] = form_data["basic"]["emoji"]
@@ -183,9 +186,17 @@ async def _render_appearance_section(form_data, bot: Bot):
                     st.session_state.generated_avatar = None
                     st.success("Avatar confirmed!")
                     st.rerun()
-            elif bot.appearance.get("generated_avatar"):
-                st.image(bot.appearance.get("generated_avatar"), width=150, caption="Current AI Avatar")
-                st.success("✓ This avatar is currently set for your character")
+            elif bot.appearance.get("avatar_type") == "ai_generated" and bot.appearance.get("avatar_data"):
+                avatar_data = bot.appearance.get("avatar_data", {})
+                if isinstance(avatar_data, dict):
+                    filepath = avatar_data.get('filepath')
+                    if filepath and os.path.exists(filepath):
+                        st.image(filepath, width=150, caption="Current AI Avatar")
+                        st.success("✓ This avatar is currently set for your character")
+                    else:
+                        st.info("Current AI avatar (file not found)")
+                else:
+                    st.info("No avatar generated yet")
             else:
                 st.info("No avatar generated yet")
 
@@ -212,7 +223,6 @@ async def _render_appearance_section(form_data, bot: Bot):
                 # If validation passes, generate the avatar
                 with st.spinner("Generating avatar with AI..."):
                     try:
-                        from controllers.image_controller import ImageController
                         image_controller = ImageController()
 
                         # Generate the avatar
@@ -245,9 +255,17 @@ async def _render_appearance_section(form_data, bot: Bot):
             if st.session_state.get('confirmed_avatar'):
                 st.image(st.session_state.confirmed_avatar, width=150, caption="Confirmed Avatar")
                 st.success("✓ This avatar will be used for your character")
-            elif bot.appearance.get("generated_avatar"):
-                st.image(bot.appearance.get("generated_avatar"), width=150, caption="Current AI Avatar")
-                st.success("✓ This avatar is currently set for your character")
+            elif bot.appearance.get("avatar_type") == "ai_generated" and bot.appearance.get("avatar_data"):
+                avatar_data = bot.appearance.get("avatar_data", {})
+                if isinstance(avatar_data, dict):
+                    filepath = avatar_data.get('filepath')
+                    if filepath and os.path.exists(filepath):
+                        st.image(filepath, width=150, caption="Current AI Avatar")
+                        st.success("✓ This avatar is currently set for your character")
+                    else:
+                        st.info("Current AI avatar (file not found)")
+                else:
+                    st.info("No avatar confirmed yet")
             else:
                 st.info("No avatar confirmed yet")
 
@@ -617,8 +635,6 @@ async def edit_bot_page():
                     "voice": form_data["voice"]
                 }
 
-                # Handle avatar data - FIXED LOGIC
-                # Handle avatar data - FIXED LOGIC
                 if form_data["appearance"].get("avatar_type") == "Upload Image":
                     if form_data["appearance"].get("uploaded_file"):
                         # Process new uploaded file
@@ -654,22 +670,38 @@ async def edit_bot_page():
                             update_form_data["appearance"]["avatar_data"] = None
                             update_form_data["appearance"]["generated_avatar"] = None
 
+
                 elif form_data["appearance"].get("avatar_type") == "Generate with AI":
+
                     if st.session_state.get('confirmed_avatar'):
-                        # Use confirmed AI avatar
-                        update_form_data["appearance"]["avatar_type"] = "generated"
-                        update_form_data["appearance"]["generated_avatar"] = st.session_state.confirmed_avatar
-                        update_form_data["appearance"]["avatar_data"] = None
+                        # Create a temporary bot instance to use the _handle_ai_generated_avatar method
+                        temp_bot = Bot(
+                            name=form_data["basic"]["name"],
+                            emoji=form_data["basic"]["emoji"],
+                            desc=form_data["basic"]["desc"],
+                            tags=form_data["tags"],
+                            is_public=form_data["is_public"]
+
+                        )
+                        temp_bot.appearance = {
+                            "description": form_data["appearance"]["description"],
+                            "avatar_type": "ai_generated",
+                            "avatar_data": None
+                        }
+
+                        # Use the AI-generated avatar handler
+                        updated_bot = await BotManager._handle_ai_generated_avatar(temp_bot, form_data)
+                        update_form_data["appearance"]["avatar_data"] = updated_bot.appearance["avatar_data"]
+                        update_form_data["appearance"]["avatar_type"] = "ai_generated"
                         st.toast("AI generated avatar saved successfully!", icon="✅")
-                    elif bot.appearance.get("generated_avatar"):
+                    elif bot.appearance.get("avatar_type") == "ai_generated" and bot.appearance.get("avatar_data"):
                         # Keep existing AI avatar
-                        update_form_data["appearance"]["avatar_type"] = "generated"
-                        update_form_data["appearance"]["generated_avatar"] = bot.appearance.get("generated_avatar")
-                        update_form_data["appearance"]["avatar_data"] = None
+                        update_form_data["appearance"]["avatar_type"] = "ai_generated"
+                        update_form_data["appearance"]["avatar_data"] = bot.appearance.get("avatar_data")
+
                     else:
                         # No AI avatar, use emoji
                         update_form_data["appearance"]["avatar_type"] = "emoji"
-                        update_form_data["appearance"]["generated_avatar"] = None
                         update_form_data["appearance"]["avatar_data"] = None
                         st.toast("No AI avatar confirmed, using emoji instead", icon="⚠️")
                 else:

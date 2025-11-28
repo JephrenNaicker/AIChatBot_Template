@@ -1,5 +1,7 @@
 import streamlit as st
-
+import os
+import base64
+from datetime import datetime
 from config import DEFAULT_RULES, BOT_PRESETS
 
 
@@ -183,12 +185,14 @@ class BotManager:
 
     @staticmethod
     async def _setup_bot_avatar(bot, form_data):
-        """Handle bot avatar configuration (emoji vs uploaded image)"""
+        """Handle bot avatar configuration (emoji vs uploaded image vs AI-generated)"""
         avatar_type = form_data["appearance"].get("avatar_type")
         uploaded_file = form_data["appearance"].get("uploaded_file")
 
         if avatar_type == "Upload Image" and uploaded_file:
             return await BotManager._handle_uploaded_avatar(bot, form_data)
+        elif avatar_type == "Generate with AI" and st.session_state.get('confirmed_avatar'):
+            return await BotManager._handle_ai_generated_avatar(bot, form_data)
         else:
             return BotManager._setup_emoji_avatar(bot, form_data)
 
@@ -331,6 +335,53 @@ class BotManager:
                         "type": "delete",
                         "bot_name": bot.name
                     }
+
+    @staticmethod
+    async def _handle_ai_generated_avatar(bot, form_data):
+        """Process AI-generated avatar and save to file system"""
+        if not st.session_state.get('confirmed_avatar'):
+            return BotManager._setup_emoji_avatar(bot, form_data)
+
+        try:
+            # Extract base64 data from the confirmed avatar
+            base64_data = st.session_state.confirmed_avatar
+            if base64_data.startswith('data:image/png;base64,'):
+                base64_data = base64_data.replace('data:image/png;base64,', '')
+
+            # Decode base64 to image bytes
+            image_bytes = base64.b64decode(base64_data)
+
+            # Create avatars directory if it doesn't exist
+            avatars_dir = "images/avatars"
+            os.makedirs(avatars_dir, exist_ok=True)
+
+            # Generate filename (sanitize bot name and add timestamp)
+            sanitized_name = "".join(c for c in bot.name if c.isalnum() or c in (' ', '-', '_')).rstrip()
+            sanitized_name = sanitized_name.replace(' ', '_')
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"{sanitized_name}_{timestamp}.png"
+            filepath = os.path.join(avatars_dir, filename)
+
+            # Save the image
+            with open(filepath, "wb") as f:
+                f.write(image_bytes)
+
+            # Store file info in bot appearance
+            bot.appearance["avatar_data"] = {
+                "filename": filename,
+                "filepath": filepath,
+                "type": "ai_generated"
+            }
+            bot.appearance["avatar_type"] = "ai_generated"
+            bot.emoji = None
+
+            st.toast("AI-generated avatar saved successfully!", icon="✅")
+            return bot
+
+        except Exception as e:
+            st.error(f"Error saving AI-generated avatar: {str(e)}")
+            # Fallback to emoji
+            return BotManager._setup_emoji_avatar(bot, form_data)
 
     @staticmethod
     def fix_coroutine_avatars():

@@ -11,7 +11,6 @@ GREETING_LIMIT = 1000
 DESC_LIMIT = 6000
 APPEARANCE_LIMIT = DESC_LIMIT
 
-
 async def _render_character_details_section(form_data):
     """Render the character details section"""
     st.subheader("🧍 Character Details")
