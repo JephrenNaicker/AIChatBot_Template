@@ -80,9 +80,9 @@ fluffy_app/
 Requirements 📋
 Python 3.8+
 #limits
---git hub not showing commits
 -- add a overlay bg for the chats
---split into api calls and UI now - after checking the background, and it seems new support for comfyUi is added
+--split into api calls and UI now - after checking the background, and it seems new support for comfyUi is added,
+--UI - current chat bot selected is not highlighthed also , its seems like its always missing that closing ""
 --Avaret imaage and background images on upload? or Ai Gen?
 Image location thing, and the mood thing 
 --Voice getting gene auto , should be gen only if user wants. and make it asyc as cant countiue the chat

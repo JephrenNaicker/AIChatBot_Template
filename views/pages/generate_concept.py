@@ -3,8 +3,23 @@ from config import PERSONALITY_TRAITS
 from controllers.chat_controller import LLMChatController
 from services.utils import Utils
 
-async def generate_concept_page():
 
+def _fix_quote_formatting(text):
+    """Ensure proper quote formatting in text"""
+    if not text:
+        return text
+
+    # Count quotes in the text
+    quote_count = text.count('"')
+
+    # If there's an odd number of quotes, add a closing quote at the end
+    if quote_count % 2 == 1:
+        text += '"'
+
+    return text
+
+
+async def generate_concept_page():
     st.title("🪄 Generate Character Concept")
 
     # Concept generation form
@@ -50,9 +65,9 @@ async def generate_concept_page():
                           {f"Inspiration: {inspiration}" if inspiration else ""}
                           {f"Appearance Hint: {appearance_hint}" if appearance_hint else ""}
                           {f"Special Ability: {special_ability}" if special_ability else ""}
-                          
+
                           Format your response EXACTLY like this example,(Do not use the 🤖 emoji):
-                          
+
                           === CHARACTER PROFILE ===
                           Name: Merlin
                           Emoji: 🧙
@@ -63,13 +78,21 @@ async def generate_concept_page():
                           - Speech Pattern: Uses old English phrases
                           - Quirks: Often speaks in rhymes, disappears in smoke when leaving
                           System Rules: thoughts appear in italics format and Dialogue in "quotes"
-                          Sample Greeting: *This traveler seems trustworthy, but I should test their intentions first.* "Ah, traveler! What brings you to my humble abode on this fine day?" 
+                          Sample Greeting: *This traveler seems trustworthy, but I should test their intentions first.* "Ah, traveler! What brings you to my humble abode on this fine day?"
                           Tags: fantasy, magic, mentor
                           === END PROFILE ===
                           """
 
                     response = LLMChatController()._cached_llm_invoke(prompt, "Character generation")
-                    st.session_state.generated_concept = Utils.parse_generated_concept(response)
+
+                    # Parse the concept first
+                    concept = Utils.parse_generated_concept(response)
+
+                    # Fix quote formatting in the greeting
+                    if 'greeting' in concept:
+                        concept['greeting'] = _fix_quote_formatting(concept['greeting'])
+
+                    st.session_state.generated_concept = concept
                     st.rerun()
                 except Exception as e:
                     st.error(f"Failed to generate concept: {str(e)}")
